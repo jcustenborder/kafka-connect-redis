@@ -16,7 +16,7 @@
 package com.github.jcustenborder.kafka.connect.redis;
 
 import io.lettuce.core.RedisFuture;
-import io.lettuce.core.cluster.api.async.RedisAdvancedClusterAsyncCommands;
+import io.lettuce.core.cluster.api.async.RedisClusterAsyncCommands;
 import org.apache.kafka.connect.errors.RetriableException;
 import org.apache.kafka.connect.sink.SinkRecord;
 import org.slf4j.Logger;
@@ -48,7 +48,7 @@ abstract class SinkOperation {
 
   public abstract void add(SinkRecord record);
 
-  public abstract void execute(RedisAdvancedClusterAsyncCommands<byte[], byte[]> asyncCommands) throws InterruptedException;
+  public abstract void execute(RedisClusterAsyncCommands<byte[], byte[]> asyncCommands) throws InterruptedException;
 
   public abstract int size();
 
@@ -94,7 +94,7 @@ abstract class SinkOperation {
     }
 
     @Override
-    public void execute(RedisAdvancedClusterAsyncCommands<byte[], byte[]> asyncCommands) {
+    public void execute(RedisClusterAsyncCommands<byte[], byte[]> asyncCommands) {
 
     }
 
@@ -118,7 +118,7 @@ abstract class SinkOperation {
     }
 
     @Override
-    public void execute(RedisAdvancedClusterAsyncCommands<byte[], byte[]> asyncCommands) throws InterruptedException {
+    public void execute(RedisClusterAsyncCommands<byte[], byte[]> asyncCommands) throws InterruptedException {
       log.debug("execute() - Calling mset with {} value(s)", this.sets.size());
       RedisFuture<?> future = asyncCommands.mset(this.sets);
       wait(future);
@@ -144,7 +144,7 @@ abstract class SinkOperation {
     }
 
     @Override
-    public void execute(RedisAdvancedClusterAsyncCommands<byte[], byte[]> asyncCommands) throws InterruptedException {
+    public void execute(RedisClusterAsyncCommands<byte[], byte[]> asyncCommands) throws InterruptedException {
       log.debug("execute() - Calling del with {} value(s)", this.deletes.size());
       byte[][] deletes = this.deletes.toArray(new byte[this.deletes.size()][]);
       RedisFuture<?> future = asyncCommands.del(deletes);

@@ -17,6 +17,7 @@ package com.github.jcustenborder.kafka.connect.redis;
 
 import com.github.jcustenborder.kafka.connect.utils.config.ConfigKeyBuilder;
 import com.github.jcustenborder.kafka.connect.utils.config.ConfigUtils;
+import com.github.jcustenborder.kafka.connect.utils.config.ValidEnum;
 import com.google.common.base.Strings;
 import com.google.common.net.HostAndPort;
 import io.lettuce.core.RedisURI;
@@ -37,18 +38,21 @@ class RedisConnectorConfig extends AbstractConfig {
   static final String PASSWORD_DOC = "";
   public static final String DATABASE_CONFIG = "redis.database";
   static final String DATABASE_DOC = "";
+  public static final String CLIENT_MODE_CONFIG = "redis.client.mode";
+  static final String CLIENT_MODE_DOC = "";
+  public final ClientMode clientMode;
 
   public final List<HostAndPort> hosts;
   public final boolean ssl;
   public final String password;
   public final int database;
-
   public RedisConnectorConfig(ConfigDef config, Map<?, ?> originals) {
     super(config, originals);
     this.hosts = ConfigUtils.hostAndPorts(this, HOSTS_CONFIG, 6379);
     this.ssl = getBoolean(SSL_CONFIG);
     this.password = getPassword(PASSWORD_CONFIG).value();
     this.database = getInt(DATABASE_CONFIG);
+    this.clientMode = ConfigUtils.getEnum(ClientMode.class, this, CLIENT_MODE_CONFIG);
   }
 
   public static ConfigDef config() {
@@ -58,6 +62,13 @@ class RedisConnectorConfig extends AbstractConfig {
                 .documentation(HOSTS_DOC)
                 .defaultValue(Arrays.asList("localhost:6379"))
                 .importance(ConfigDef.Importance.HIGH)
+                .build()
+        ).define(
+            ConfigKeyBuilder.of(CLIENT_MODE_CONFIG, ConfigDef.Type.STRING)
+                .documentation(CLIENT_MODE_DOC)
+                .defaultValue(ClientMode.Standalone.toString())
+                .validator(ValidEnum.of(ClientMode.class))
+                .importance(ConfigDef.Importance.MEDIUM)
                 .build()
         ).define(
             ConfigKeyBuilder.of(SSL_CONFIG, ConfigDef.Type.BOOLEAN)
@@ -91,8 +102,14 @@ class RedisConnectorConfig extends AbstractConfig {
         builder.withPassword(this.password);
       }
       builder.withSsl(this.ssl);
+      result.add(builder.build());
     }
 
     return result;
+  }
+
+  public enum ClientMode {
+    Standalone,
+    Cluster
   }
 }

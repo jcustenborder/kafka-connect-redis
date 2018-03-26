@@ -16,9 +16,15 @@
 package com.github.jcustenborder.kafka.connect.redis;
 
 import com.github.jcustenborder.kafka.connect.utils.VersionUtil;
+import io.lettuce.core.AbstractRedisClient;
+import io.lettuce.core.RedisClient;
+import io.lettuce.core.api.StatefulConnection;
+import io.lettuce.core.api.StatefulRedisConnection;
 import io.lettuce.core.cluster.RedisClusterClient;
-import io.lettuce.core.cluster.api.async.RedisAdvancedClusterAsyncCommands;
+import io.lettuce.core.cluster.api.StatefulRedisClusterConnection;
+import io.lettuce.core.cluster.api.async.RedisClusterAsyncCommands;
 import io.lettuce.core.codec.ByteArrayCodec;
+import io.lettuce.core.codec.RedisCodec;
 import org.apache.kafka.connect.errors.RetriableException;
 import org.apache.kafka.connect.sink.SinkRecord;
 import org.apache.kafka.connect.sink.SinkTask;
@@ -39,14 +45,33 @@ public class RedisSinkTask extends SinkTask {
   }
 
   RedisSinkConnectorConfig config;
-  RedisClusterClient client;
-  RedisAdvancedClusterAsyncCommands<byte[], byte[]> asyncCommands;
+  AbstractRedisClient client;
+  StatefulConnection connection;
+  RedisClusterAsyncCommands<byte[], byte[]> asyncCommands;
 
   @Override
   public void start(Map<String, String> settings) {
     this.config = new RedisSinkConnectorConfig(settings);
     this.client = RedisClusterClient.create(this.config.redisURIs());
-    this.asyncCommands = this.client.connect(new ByteArrayCodec()).async();
+    final RedisCodec<byte[], byte[]> codec = new ByteArrayCodec();
+    if (RedisConnectorConfig.ClientMode.Cluster == this.config.clientMode) {
+      final RedisClusterClient client = RedisClusterClient.create(this.config.redisURIs());
+      final StatefulRedisClusterConnection<byte[], byte[]> connection = client.connect(codec);
+      this.client = client;
+      this.connection = connection;
+      this.asyncCommands = connection.async();
+    } else if (RedisConnectorConfig.ClientMode.Standalone == this.config.clientMode) {
+      final RedisClient client = RedisClient.create(this.config.redisURIs().get(0));
+      final StatefulRedisConnection<byte[], byte[]> connection = client.connect(codec);
+      this.client = client;
+      this.connection = connection;
+      this.asyncCommands = connection.async();
+
+    } else {
+      throw new UnsupportedOperationException(
+          String.format("%s is not supported", this.config.clientMode)
+      );
+    }
   }
 
 
@@ -96,6 +121,6 @@ public class RedisSinkTask extends SinkTask {
 
   @Override
   public void stop() {
-
+    this.connection.close();
   }
 }

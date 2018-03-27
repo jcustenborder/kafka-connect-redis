@@ -31,6 +31,17 @@ This connector supports deletes. It will issue a delete to the Redis cluster for
 
 
 
+##### `redis.client.mode`
+*Importance:* Medium
+
+*Type:* String
+
+*Default Value:* Standalone
+
+*Validator:* ValidEnum{enum=ClientMode, allowed=[Standalone, Cluster]}
+
+
+
 ##### `redis.database`
 *Importance:* Medium
 
@@ -66,6 +77,94 @@ redis.operation.timeout.ms
 *Type:* Boolean
 
 *Default Value:* false
+
+
+
+##### `redis.ssl.keystore.password`
+*Importance:* Medium
+
+*Type:* Password
+
+*Default Value:* [hidden]
+
+
+
+##### `redis.ssl.keystore.path`
+*Importance:* Medium
+
+*Type:* String
+
+
+
+##### `redis.ssl.truststore.password`
+*Importance:* Medium
+
+*Type:* Password
+
+*Default Value:* [hidden]
+
+
+
+##### `redis.ssl.truststore.path`
+*Importance:* Medium
+
+*Type:* String
+
+
+
+##### `redis.auto.reconnect.enabled`
+*Importance:* Low
+
+*Type:* Boolean
+
+*Default Value:* true
+
+
+
+##### `redis.request.queue.size`
+*Importance:* Low
+
+*Type:* Int
+
+*Default Value:* 2147483647
+
+
+
+##### `redis.socket.connect.timeout.ms`
+*Importance:* Low
+
+*Type:* Int
+
+*Default Value:* 10000
+
+
+
+##### `redis.socket.keep.alive.enabled`
+*Importance:* Low
+
+*Type:* Boolean
+
+*Default Value:* false
+
+
+
+##### `redis.socket.tcp.no.delay.enabled`
+*Importance:* Low
+
+*Type:* Boolean
+
+*Default Value:* true
+
+
+
+##### `redis.ssl.provider`
+*Importance:* Low
+
+*Type:* String
+
+*Default Value:* JDK
+
+*Validator:* ValidEnum{enum=RedisSslProvider, allowed=[OPENSSL, JDK]}
 
 
 
@@ -112,6 +211,3 @@ Update an existing instance.
 ```bash
 curl -s -X PUT -H 'Content-Type: application/json' --data @connector.json http://localhost:8083/connectors/TestSinkConnector1/config
 ```
-
-
-

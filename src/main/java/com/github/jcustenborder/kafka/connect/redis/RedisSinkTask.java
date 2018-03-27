@@ -41,7 +41,7 @@ public class RedisSinkTask extends SinkTask {
   @Override
   public void start(Map<String, String> settings) {
     this.config = new RedisSinkConnectorConfig(settings);
-    this.session = RedisSession.create(this.config);
+    this.session = RedisSessionImpl.create(this.config);
   }
 
   @Override

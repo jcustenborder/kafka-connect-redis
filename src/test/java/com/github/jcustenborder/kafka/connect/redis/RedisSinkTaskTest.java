@@ -20,6 +20,7 @@ import com.google.common.base.Strings;
 import com.google.common.collect.ImmutableMap;
 import io.lettuce.core.RedisFuture;
 import io.lettuce.core.cluster.api.async.RedisAdvancedClusterAsyncCommands;
+import io.lettuce.core.cluster.api.async.RedisClusterAsyncCommands;
 import org.apache.kafka.connect.data.Schema;
 import org.apache.kafka.connect.sink.SinkRecord;
 import org.junit.jupiter.api.Test;
@@ -68,13 +69,16 @@ public class RedisSinkTaskTest {
   @Test
   public void put() throws InterruptedException {
     RedisSinkTask task = new RedisSinkTask();
-    task.asyncCommands = mock(RedisAdvancedClusterAsyncCommands.class);
+    task.session = mock(RedisSession.class);
+    RedisClusterAsyncCommands<byte[], byte[]> asyncCommands = mock(RedisAdvancedClusterAsyncCommands.class);
+    when(task.session.asyncCommands()).thenReturn(asyncCommands);
+
     RedisFuture<String> setFuture = mock(RedisFuture.class);
     when(setFuture.await(anyLong(), any(TimeUnit.class))).thenReturn(true);
     RedisFuture<Long> deleteFuture = mock(RedisFuture.class);
     when(deleteFuture.await(anyLong(), any(TimeUnit.class))).thenReturn(true);
-    when(task.asyncCommands.mset(anyMap())).thenReturn(setFuture);
-    when(task.asyncCommands.del(any())).thenReturn(deleteFuture);
+    when(asyncCommands.mset(anyMap())).thenReturn(setFuture);
+    when(asyncCommands.del(any())).thenReturn(deleteFuture);
     task.config = new RedisSinkConnectorConfig(
         ImmutableMap.of()
     );
@@ -89,10 +93,10 @@ public class RedisSinkTaskTest {
 
     task.put(records);
 
-    InOrder inOrder = Mockito.inOrder(task.asyncCommands);
-    inOrder.verify(task.asyncCommands).mset(anyMap());
-    inOrder.verify(task.asyncCommands).del(any(byte[].class));
-    inOrder.verify(task.asyncCommands).mset(anyMap());
+    InOrder inOrder = Mockito.inOrder(asyncCommands);
+    inOrder.verify(asyncCommands).mset(anyMap());
+    inOrder.verify(asyncCommands).del(any(byte[].class));
+    inOrder.verify(asyncCommands).mset(anyMap());
   }
 
 }

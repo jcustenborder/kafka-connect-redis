@@ -16,8 +16,11 @@
 package com.github.jcustenborder.kafka.connect.redis;
 
 import com.github.jcustenborder.kafka.connect.utils.config.ConfigKeyBuilder;
+import com.github.jcustenborder.kafka.connect.utils.config.recommenders.Recommenders;
+import com.github.jcustenborder.kafka.connect.utils.config.validators.Validators;
 import org.apache.kafka.common.config.ConfigDef;
 
+import java.nio.charset.Charset;
 import java.util.Map;
 
 class RedisSinkConnectorConfig extends RedisConnectorConfig {
@@ -25,11 +28,17 @@ class RedisSinkConnectorConfig extends RedisConnectorConfig {
   public final static String OPERATION_TIMEOUT_MS_CONF = "redis.operation.timeout.ms";
   final static String OPERATION_TIMEOUT_MS_DOC = "redis.operation.timeout.ms";
 
+  public final static String CHARSET_CONF = "redis.charset";
+  public final static String CHARSET_DOC = "redis.charset";
+
   public final long operationTimeoutMs;
+  public final Charset charset;
 
   public RedisSinkConnectorConfig(Map<?, ?> originals) {
     super(config(), originals);
     this.operationTimeoutMs = getLong(OPERATION_TIMEOUT_MS_CONF);
+    String charset = getString(CHARSET_CONF);
+    this.charset = Charset.forName(charset);
   }
 
   public static ConfigDef config() {
@@ -40,6 +49,14 @@ class RedisSinkConnectorConfig extends RedisConnectorConfig {
                 .defaultValue(10000L)
                 .validator(ConfigDef.Range.atLeast(100L))
                 .importance(ConfigDef.Importance.MEDIUM)
+                .build()
+        ).define(
+            ConfigKeyBuilder.of(CHARSET_CONF, ConfigDef.Type.STRING)
+                .documentation(CHARSET_DOC)
+                .defaultValue("UTF-8")
+                .validator(Validators.validCharset())
+                .recommender(Recommenders.charset())
+                .importance(ConfigDef.Importance.LOW)
                 .build()
         );
   }

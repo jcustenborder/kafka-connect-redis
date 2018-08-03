@@ -1,23 +1,23 @@
 
 # Introduction
 
-
+The Redis plugin is a collection of connectors that are used to interact with a Redis cluster.
 
 
 
 # Sink Connectors
 
 
-## RedisSinkConnector
+## Redis Sink Connector
 
-Sink connector for writing data to Redis
+The Redis Sink Connector is used to write data from Kafka to a Redis cache.
 
 ### Important
 
-This connector expects to received data with a key of bytes and a values of bytes. If your data is structured you need to use a Transformation to convert this data from structured data like a Struct to an array of bytes for the key and value.
+This connector expects records from Kafka to have a key and value that are stored as bytes or a string. If your data is already in Kafka in the format that you want in Redis consider using the ByteArrayConverter or the StringConverter for this connector. Keep in this does not need to be configured in the worker properties and can be configured at the connector level. If your data is not sitting in Kafka in the format you wish to persist in Redis consider using a Single Message Transformation to convert the data to a byte or string representation before it is written to Redis.
 ### Note
 
-This connector supports deletes. It will issue a delete to the Redis cluster for any key that does not have a corresponding value. In Kafka a record that contains a key and a null value is considered a delete.
+This connector supports deletes. If the record stored in Kafka has a null value, this connector will send a delete with the corresponding key to Redis.
 
 
 ### Configuration
@@ -27,7 +27,7 @@ This connector supports deletes. It will issue a delete to the Redis cluster for
 
 ##### `redis.hosts`
 
-
+The Redis hosts to connect to.
 
 *Importance:* High
 
@@ -39,7 +39,7 @@ This connector supports deletes. It will issue a delete to the Redis cluster for
 
 ##### `redis.client.mode`
 
-
+The client mode to use when interacting with the Redis cluster.
 
 *Importance:* Medium
 
@@ -53,7 +53,7 @@ This connector supports deletes. It will issue a delete to the Redis cluster for
 
 ##### `redis.database`
 
-
+Redis database to connect to.
 
 *Importance:* Medium
 
@@ -65,7 +65,7 @@ This connector supports deletes. It will issue a delete to the Redis cluster for
 
 ##### `redis.operation.timeout.ms`
 
-redis.operation.timeout.ms
+The amount of time in milliseconds before an operation is marked as timed out.
 
 *Importance:* Medium
 
@@ -79,7 +79,7 @@ redis.operation.timeout.ms
 
 ##### `redis.password`
 
-
+Password used to connect to Redis.
 
 *Importance:* Medium
 
@@ -91,7 +91,7 @@ redis.operation.timeout.ms
 
 ##### `redis.ssl.enabled`
 
-
+Flag to determine if SSL is enabled.
 
 *Importance:* Medium
 
@@ -103,7 +103,7 @@ redis.operation.timeout.ms
 
 ##### `redis.ssl.keystore.password`
 
-
+The password for the SSL keystore.
 
 *Importance:* Medium
 
@@ -115,7 +115,7 @@ redis.operation.timeout.ms
 
 ##### `redis.ssl.keystore.path`
 
-
+The path to the SSL keystore.
 
 *Importance:* Medium
 
@@ -125,7 +125,7 @@ redis.operation.timeout.ms
 
 ##### `redis.ssl.truststore.password`
 
-
+The password for the SSL truststore.
 
 *Importance:* Medium
 
@@ -137,7 +137,7 @@ redis.operation.timeout.ms
 
 ##### `redis.ssl.truststore.path`
 
-
+The path to the SSL truststore.
 
 *Importance:* Medium
 
@@ -147,7 +147,7 @@ redis.operation.timeout.ms
 
 ##### `redis.auto.reconnect.enabled`
 
-
+Flag to determine if the Redis client should automatically reconnect.
 
 *Importance:* Low
 
@@ -159,7 +159,7 @@ redis.operation.timeout.ms
 
 ##### `redis.charset`
 
-redis.charset
+The character set to use for String key and values.
 
 *Importance:* Low
 
@@ -173,7 +173,7 @@ redis.charset
 
 ##### `redis.request.queue.size`
 
-
+The maximum number of queued requests to Redis.
 
 *Importance:* Low
 
@@ -185,7 +185,7 @@ redis.charset
 
 ##### `redis.socket.connect.timeout.ms`
 
-
+The amount of time in milliseconds to wait before timing out a socket when connecting.
 
 *Importance:* Low
 
@@ -197,7 +197,7 @@ redis.charset
 
 ##### `redis.socket.keep.alive.enabled`
 
-
+Flag to enable a keepalive to Redis.
 
 *Importance:* Low
 
@@ -209,7 +209,7 @@ redis.charset
 
 ##### `redis.socket.tcp.no.delay.enabled`
 
-
+Flag to enable TCP no delay should be used.
 
 *Importance:* Low
 
@@ -221,7 +221,7 @@ redis.charset
 
 ##### `redis.ssl.provider`
 
-
+The SSL provider to use.
 
 *Importance:* Low
 

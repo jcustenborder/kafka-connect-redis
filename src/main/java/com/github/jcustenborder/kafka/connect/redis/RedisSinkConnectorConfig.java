@@ -26,10 +26,11 @@ import java.util.Map;
 class RedisSinkConnectorConfig extends RedisConnectorConfig {
 
   public final static String OPERATION_TIMEOUT_MS_CONF = "redis.operation.timeout.ms";
-  final static String OPERATION_TIMEOUT_MS_DOC = "redis.operation.timeout.ms";
+  final static String OPERATION_TIMEOUT_MS_DOC = "The amount of time in milliseconds before an" +
+      " operation is marked as timed out.";
 
   public final static String CHARSET_CONF = "redis.charset";
-  public final static String CHARSET_DOC = "redis.charset";
+  public final static String CHARSET_DOC = "The character set to use for String key and values.";
 
   public final long operationTimeoutMs;
   public final Charset charset;

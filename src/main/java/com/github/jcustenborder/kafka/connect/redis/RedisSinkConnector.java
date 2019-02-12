@@ -20,6 +20,7 @@ import com.github.jcustenborder.kafka.connect.utils.config.Description;
 import com.github.jcustenborder.kafka.connect.utils.config.DocumentationImportant;
 import com.github.jcustenborder.kafka.connect.utils.config.DocumentationNote;
 import com.github.jcustenborder.kafka.connect.utils.config.TaskConfigs;
+import com.github.jcustenborder.kafka.connect.utils.config.Title;
 import org.apache.kafka.common.config.ConfigDef;
 import org.apache.kafka.connect.connector.Task;
 import org.apache.kafka.connect.sink.SinkConnector;
@@ -27,14 +28,17 @@ import org.apache.kafka.connect.sink.SinkConnector;
 import java.util.List;
 import java.util.Map;
 
-
-@Description("Sink connector for writing data to Redis")
-@DocumentationImportant("This connector expects to received data with a key of bytes and a values of " +
-    "bytes. If your data is structured you need to use a Transformation to convert this data from " +
-    "structured data like a Struct to an array of bytes for the key and value.")
-@DocumentationNote("This connector supports deletes. It will issue a delete to the Redis cluster for " +
-    "any key that does not have a corresponding value. In Kafka a record that contains a key and a " +
-    "null value is considered a delete.")
+@Title("Redis Sink Connector")
+@Description("The Redis Sink Connector is used to write data from Kafka to a Redis cache.")
+@DocumentationImportant("This connector expects records from Kafka to have a key and value that are " +
+    "stored as bytes or a string. If your data is already in Kafka in the format that you want in " +
+    "Redis consider using the ByteArrayConverter or the StringConverter for this connector. Keep in " +
+    "this does not need to be configured in the worker properties and can be configured at the " +
+    "connector level. If your data is not sitting in Kafka in the format you wish to persist in Redis " +
+    "consider using a Single Message Transformation to convert the data to a byte or string representation " +
+    "before it is written to Redis.")
+@DocumentationNote("This connector supports deletes. If the record stored in Kafka has a null value, " +
+    "this connector will send a delete with the corresponding key to Redis.")
 public class RedisSinkConnector extends SinkConnector {
   @Override
   public String version() {

@@ -37,35 +37,38 @@ import java.util.Map;
 class RedisConnectorConfig extends AbstractConfig {
   private static final Logger log = LoggerFactory.getLogger(RedisConnectorConfig.class);
   public static final String HOSTS_CONFIG = "redis.hosts";
-  static final String HOSTS_DOC = "";
+  static final String HOSTS_DOC = "The Redis hosts to connect to.";
   public static final String SSL_CONFIG = "redis.ssl.enabled";
-  static final String SSL_DOC = "";
+  static final String SSL_DOC = "Flag to determine if SSL is enabled.";
   public static final String PASSWORD_CONFIG = "redis.password";
-  static final String PASSWORD_DOC = "";
+  static final String PASSWORD_DOC = "Password used to connect to Redis.";
   public static final String DATABASE_CONFIG = "redis.database";
-  static final String DATABASE_DOC = "";
+  static final String DATABASE_DOC = "Redis database to connect to.";
   public static final String CLIENT_MODE_CONFIG = "redis.client.mode";
-  static final String CLIENT_MODE_DOC = "";
+  static final String CLIENT_MODE_DOC = "The client mode to use when interacting with the Redis " +
+      "cluster.";
   public static final String AUTO_RECONNECT_ENABLED_CONFIG = "redis.auto.reconnect.enabled";
-  static final String AUTO_RECONNECT_ENABLED_DOC = "";
+  static final String AUTO_RECONNECT_ENABLED_DOC = "Flag to determine if the Redis client should " +
+      "automatically reconnect.";
   public static final String REQUEST_QUEUE_SIZE_CONFIG = "redis.request.queue.size";
-  static final String REQUEST_QUEUE_SIZE_DOC = "";
+  static final String REQUEST_QUEUE_SIZE_DOC = "The maximum number of queued requests to Redis.";
   public static final String SOCKET_TCP_NO_DELAY_CONFIG = "redis.socket.tcp.no.delay.enabled";
-  static final String SOCKET_TCP_NO_DELAY_DOC = "";
+  static final String SOCKET_TCP_NO_DELAY_DOC = "Flag to enable TCP no delay should be used.";
   public static final String SOCKET_KEEP_ALIVE_CONFIG = "redis.socket.keep.alive.enabled";
-  static final String SOCKET_KEEP_ALIVE_DOC = "";
+  static final String SOCKET_KEEP_ALIVE_DOC = "Flag to enable a keepalive to Redis.";
   public static final String SOCKET_CONNECT_TIMEOUT_CONFIG = "redis.socket.connect.timeout.ms";
-  static final String SOCKET_CONNECT_TIMEOUT_DOC = "";
+  static final String SOCKET_CONNECT_TIMEOUT_DOC = "The amount of time in milliseconds to wait " +
+      "before timing out a socket when connecting.";
   public static final String SSL_PROVIDER_CONFIG = "redis.ssl.provider";
-  static final String SSL_PROVIDER_DOC = "";
+  static final String SSL_PROVIDER_DOC = "The SSL provider to use.";
   public static final String SSL_KEYSTORE_PATH_CONFIG = "redis.ssl.keystore.path";
-  static final String SSL_KEYSTORE_PATH_DOC = "";
+  static final String SSL_KEYSTORE_PATH_DOC = "The path to the SSL keystore.";
   public static final String SSL_KEYSTORE_PASSWORD_CONFIG = "redis.ssl.keystore.password";
-  static final String SSL_KEYSTORE_PASSWORD_DOC = "";
+  static final String SSL_KEYSTORE_PASSWORD_DOC = "The password for the SSL keystore.";
   public static final String SSL_TRUSTSTORE_PATH_CONFIG = "redis.ssl.truststore.path";
-  static final String SSL_TRUSTSTORE_PATH_DOC = "";
+  static final String SSL_TRUSTSTORE_PATH_DOC = "The path to the SSL truststore.";
   public static final String SSL_TRUSTSTORE_PASSWORD_CONFIG = "redis.ssl.truststore.password";
-  static final String SSL_TRUSTSTORE_PASSWORD_DOC = "";
+  static final String SSL_TRUSTSTORE_PASSWORD_DOC = "The password for the SSL truststore.";
   
   public final ClientMode clientMode;
   public final List<HostAndPort> hosts;
@@ -213,7 +216,7 @@ class RedisConnectorConfig extends AbstractConfig {
 
     for (HostAndPort host : this.hosts) {
       RedisURI.Builder builder = RedisURI.builder();
-      builder.withHost(host.getHostText());
+      builder.withHost(host.getHost());
       builder.withPort(host.getPort());
       if (!Strings.isNullOrEmpty(this.password)) {
         builder.withPassword(this.password);

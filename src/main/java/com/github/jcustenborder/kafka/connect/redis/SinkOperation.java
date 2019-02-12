@@ -18,7 +18,6 @@ package com.github.jcustenborder.kafka.connect.redis;
 import io.lettuce.core.RedisFuture;
 import io.lettuce.core.cluster.api.async.RedisClusterAsyncCommands;
 import org.apache.kafka.connect.errors.RetriableException;
-import org.apache.kafka.connect.sink.SinkRecord;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -46,7 +45,7 @@ abstract class SinkOperation {
     NONE
   }
 
-  public abstract void add(SinkRecord record);
+  public abstract void add(byte[] key, byte[] value);
 
   public abstract void execute(RedisClusterAsyncCommands<byte[], byte[]> asyncCommands) throws InterruptedException;
 
@@ -87,7 +86,7 @@ abstract class SinkOperation {
     }
 
     @Override
-    public void add(SinkRecord record) {
+    public void add(byte[] key, byte[] value) {
       throw new UnsupportedOperationException(
           "This should never be called."
       );
@@ -113,8 +112,8 @@ abstract class SinkOperation {
     }
 
     @Override
-    public void add(SinkRecord record) {
-      this.sets.put((byte[]) record.key(), (byte[]) record.value());
+    public void add(byte[] key, byte[] value) {
+      this.sets.put(key, value);
     }
 
     @Override
@@ -139,8 +138,8 @@ abstract class SinkOperation {
     }
 
     @Override
-    public void add(SinkRecord record) {
-      this.deletes.add((byte[]) record.key());
+    public void add(byte[] key, byte[] value) {
+      this.deletes.add(key);
     }
 
     @Override

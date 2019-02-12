@@ -22,7 +22,10 @@ import io.lettuce.core.RedisFuture;
 import io.lettuce.core.cluster.api.async.RedisAdvancedClusterAsyncCommands;
 import io.lettuce.core.cluster.api.async.RedisClusterAsyncCommands;
 import org.apache.kafka.connect.data.Schema;
+import org.apache.kafka.connect.data.SchemaAndValue;
+import org.apache.kafka.connect.errors.DataException;
 import org.apache.kafka.connect.sink.SinkRecord;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.InOrder;
 import org.mockito.Mockito;
@@ -31,14 +34,19 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
+import static com.github.jcustenborder.kafka.connect.utils.SinkRecordHelper.write;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.withSettings;
 
 public class RedisSinkTaskTest {
-  long offset;
+  long offset = 1;
 
   SinkRecord record(String k, String v) {
     final byte[] key = k.getBytes(Charsets.UTF_8);
@@ -66,11 +74,14 @@ public class RedisSinkTaskTest {
 
   }
 
-  @Test
-  public void put() throws InterruptedException {
-    RedisSinkTask task = new RedisSinkTask();
-    task.session = mock(RedisSession.class);
-    RedisClusterAsyncCommands<byte[], byte[]> asyncCommands = mock(RedisAdvancedClusterAsyncCommands.class);
+  RedisSinkTask task;
+  RedisClusterAsyncCommands<byte[], byte[]> asyncCommands;
+
+  @BeforeEach
+  public void before() throws InterruptedException {
+    this.task = new RedisSinkTask();
+    this.task.session = mock(RedisSession.class);
+    this.asyncCommands = mock(RedisAdvancedClusterAsyncCommands.class, withSettings().verboseLogging());
     when(task.session.asyncCommands()).thenReturn(asyncCommands);
 
     RedisFuture<String> setFuture = mock(RedisFuture.class);
@@ -82,7 +93,47 @@ public class RedisSinkTaskTest {
     task.config = new RedisSinkConnectorConfig(
         ImmutableMap.of()
     );
+  }
 
+
+  @Test
+  public void nonByteOrStringKey() {
+    DataException exception = assertThrows(DataException.class, () -> {
+      this.task.put(
+          Arrays.asList(
+              write("topic",
+                  new SchemaAndValue(Schema.INT32_SCHEMA, 1),
+                  new SchemaAndValue(Schema.INT32_SCHEMA, 1)
+              )
+          )
+      );
+    });
+    assertEquals(
+        "The key for the record must be String or Bytes. Consider using the ByteArrayConverter or StringConverter if the data is stored in Kafka in the format needed in Redis. Another option is to use a single message transformation to transform the data before it is written to Redis.",
+        exception.getMessage());
+  }
+
+  @Test
+  public void nonByteOrStringValue() {
+    DataException exception = assertThrows(DataException.class, () -> {
+      this.task.put(
+          Arrays.asList(
+              write("topic",
+                  new SchemaAndValue(Schema.STRING_SCHEMA, "test"),
+                  new SchemaAndValue(Schema.INT32_SCHEMA, 1)
+              )
+          )
+      );
+    });
+
+    assertEquals(
+        "The value for the record must be String or Bytes. Consider using the ByteArrayConverter or StringConverter if the data is stored in Kafka in the format needed in Redis. Another option is to use a single message transformation to transform the data before it is written to Redis.",
+        exception.getMessage()
+    );
+  }
+
+  @Test
+  public void put() throws InterruptedException {
     List<SinkRecord> records = Arrays.asList(
         record("set1", "asdf"),
         record("set2", "asdf"),
@@ -96,7 +147,7 @@ public class RedisSinkTaskTest {
     InOrder inOrder = Mockito.inOrder(asyncCommands);
     inOrder.verify(asyncCommands).mset(anyMap());
     inOrder.verify(asyncCommands).del(any(byte[].class));
-    inOrder.verify(asyncCommands).mset(anyMap());
+    inOrder.verify(asyncCommands, times(2)).mset(anyMap());
   }
 
 }

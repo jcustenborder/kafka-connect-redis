@@ -216,7 +216,7 @@ class RedisConnectorConfig extends AbstractConfig {
 
     for (HostAndPort host : this.hosts) {
       RedisURI.Builder builder = RedisURI.builder();
-      builder.withHost(host.getHostText());
+      builder.withHost(host.getHost());
       builder.withPort(host.getPort());
       if (!Strings.isNullOrEmpty(this.password)) {
         builder.withPassword(this.password);

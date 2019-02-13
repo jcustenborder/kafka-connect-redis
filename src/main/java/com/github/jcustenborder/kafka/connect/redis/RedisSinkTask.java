@@ -148,7 +148,7 @@ public class RedisSinkTask extends SinkTask {
     TopicPartitionCounter counter = new TopicPartitionCounter();
 
     for (SinkRecord record : records) {
-      log.trace("put() - Processing record %s", formatLocation(record));
+      log.trace("put() - Processing record " + formatLocation(record));
       if (null == record.key()) {
         throw new DataException(
             "The key for the record cannot be null. " + formatLocation(record)

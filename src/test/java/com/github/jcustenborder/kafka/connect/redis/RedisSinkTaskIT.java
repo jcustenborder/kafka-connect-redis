@@ -18,6 +18,7 @@ package com.github.jcustenborder.kafka.connect.redis;
 import com.github.jcustenborder.docker.junit5.Compose;
 import com.github.jcustenborder.docker.junit5.Port;
 import com.google.common.base.Charsets;
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import io.lettuce.core.KeyValue;
@@ -59,6 +60,32 @@ public class RedisSinkTaskIT {
   @BeforeEach
   public void before() {
     this.task = new RedisSinkTask();
+  }
+
+  @Test
+  public void emptyAssignment(@Port(container = "redis", internalPort = 6379) InetSocketAddress address) throws ExecutionException, InterruptedException {
+    log.info("address = {}", address);
+    final String topic = "putWrite";
+    SinkTaskContext context = mock(SinkTaskContext.class);
+    when(context.assignment()).thenReturn(ImmutableSet.of());
+    this.task.initialize(context);
+    this.task.start(
+        ImmutableMap.of(RedisSinkConnectorConfig.HOSTS_CONFIG, String.format("%s:%s", address.getHostString(), address.getPort()))
+    );
+  }
+
+  @Test
+  public void putEmpty(@Port(container = "redis", internalPort = 6379) InetSocketAddress address) throws ExecutionException, InterruptedException {
+    log.info("address = {}", address);
+    final String topic = "putWrite";
+    SinkTaskContext context = mock(SinkTaskContext.class);
+    when(context.assignment()).thenReturn(ImmutableSet.of(new TopicPartition(topic, 1)));
+    this.task.initialize(context);
+    this.task.start(
+        ImmutableMap.of(RedisSinkConnectorConfig.HOSTS_CONFIG, String.format("%s:%s", address.getHostString(), address.getPort()))
+    );
+
+    this.task.put(ImmutableList.of());
   }
 
   @Test

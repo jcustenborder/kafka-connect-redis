@@ -192,18 +192,20 @@ public class RedisSinkTask extends SinkTask {
     );
 
     final List<SinkOffsetState> offsetData = counter.offsetStates();
-    operation = SinkOperation.create(SinkOperation.Type.SET, this.config, offsetData.size());
-    operations.add(operation);
-    for (SinkOffsetState e : offsetData) {
-      final byte[] key = String.format("__kafka.offset.%s.%s", e.topic(), e.partition()).getBytes(Charsets.UTF_8);
-      final byte[] value;
-      try {
-        value = ObjectMapperFactory.INSTANCE.writeValueAsBytes(e);
-      } catch (JsonProcessingException e1) {
-        throw new DataException(e1);
+    if (!offsetData.isEmpty()) {
+      operation = SinkOperation.create(SinkOperation.Type.SET, this.config, offsetData.size());
+      operations.add(operation);
+      for (SinkOffsetState e : offsetData) {
+        final byte[] key = String.format("__kafka.offset.%s.%s", e.topic(), e.partition()).getBytes(Charsets.UTF_8);
+        final byte[] value;
+        try {
+          value = ObjectMapperFactory.INSTANCE.writeValueAsBytes(e);
+        } catch (JsonProcessingException e1) {
+          throw new DataException(e1);
+        }
+        operation.add(key, value);
+        log.trace("put() - Setting offset: {}", e);
       }
-      operation.add(key, value);
-      log.trace("put() - Setting offset: {}", e);
     }
 
     for (SinkOperation op : operations) {

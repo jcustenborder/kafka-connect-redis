@@ -62,6 +62,18 @@ public class RedisSinkTaskIT {
   }
 
   @Test
+  public void emptyAssignment(@Port(container = "redis", internalPort = 6379) InetSocketAddress address) throws ExecutionException, InterruptedException {
+    log.info("address = {}", address);
+    final String topic = "putWrite";
+    SinkTaskContext context = mock(SinkTaskContext.class);
+    when(context.assignment()).thenReturn(ImmutableSet.of());
+    this.task.initialize(context);
+    this.task.start(
+        ImmutableMap.of(RedisSinkConnectorConfig.HOSTS_CONFIG, String.format("%s:%s", address.getHostString(), address.getPort()))
+    );
+  }
+
+  @Test
   public void putWrite(@Port(container = "redis", internalPort = 6379) InetSocketAddress address) throws ExecutionException, InterruptedException {
     log.info("address = {}", address);
     final String topic = "putWrite";

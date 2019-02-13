@@ -73,35 +73,36 @@ public class RedisSinkTask extends SinkTask {
     this.session = RedisSessionImpl.create(this.config);
 
     final Set<TopicPartition> assignment = this.context.assignment();
-    final byte[][] partitionKeys = assignment.stream()
-        .map(RedisSinkTask::redisOffsetKey)
-        .map(s -> s.getBytes(Charsets.UTF_8))
-        .toArray(byte[][]::new);
+    if (!assignment.isEmpty()) {
+      final byte[][] partitionKeys = assignment.stream()
+          .map(RedisSinkTask::redisOffsetKey)
+          .map(s -> s.getBytes(Charsets.UTF_8))
+          .toArray(byte[][]::new);
 
-
-    final RedisFuture<List<KeyValue<byte[], byte[]>>> partitionKeyFuture = this.session.asyncCommands().mget(partitionKeys);
-    final List<SinkOffsetState> sinkOffsetStates;
-    try {
-      final List<KeyValue<byte[], byte[]>> partitionKey = partitionKeyFuture.get(this.config.operationTimeoutMs, TimeUnit.MILLISECONDS);
-      sinkOffsetStates = partitionKey.stream()
-          .map(RedisSinkTask::state)
-          .filter(Objects::nonNull)
-          .collect(Collectors.toList());
-    } catch (InterruptedException | ExecutionException | TimeoutException e) {
-      throw new RetriableException(e);
-    }
-    Map<TopicPartition, Long> partitionOffsets = new HashMap<>(assignment.size());
-    for (SinkOffsetState state : sinkOffsetStates) {
-      partitionOffsets.put(state.topicPartition(), state.offset());
-      log.info("Requesting offset {} for {}", state.offset(), state.topicPartition());
-    }
-    for (TopicPartition topicPartition : assignment) {
-      if (!partitionOffsets.containsKey(topicPartition)) {
-        partitionOffsets.put(topicPartition, 0L);
-        log.info("Requesting offset {} for {}", 0L, topicPartition);
+      final RedisFuture<List<KeyValue<byte[], byte[]>>> partitionKeyFuture = this.session.asyncCommands().mget(partitionKeys);
+      final List<SinkOffsetState> sinkOffsetStates;
+      try {
+        final List<KeyValue<byte[], byte[]>> partitionKey = partitionKeyFuture.get(this.config.operationTimeoutMs, TimeUnit.MILLISECONDS);
+        sinkOffsetStates = partitionKey.stream()
+            .map(RedisSinkTask::state)
+            .filter(Objects::nonNull)
+            .collect(Collectors.toList());
+      } catch (InterruptedException | ExecutionException | TimeoutException e) {
+        throw new RetriableException(e);
       }
+      Map<TopicPartition, Long> partitionOffsets = new HashMap<>(assignment.size());
+      for (SinkOffsetState state : sinkOffsetStates) {
+        partitionOffsets.put(state.topicPartition(), state.offset());
+        log.info("Requesting offset {} for {}", state.offset(), state.topicPartition());
+      }
+      for (TopicPartition topicPartition : assignment) {
+        if (!partitionOffsets.containsKey(topicPartition)) {
+          partitionOffsets.put(topicPartition, 0L);
+          log.info("Requesting offset {} for {}", 0L, topicPartition);
+        }
+      }
+      this.context.offset(partitionOffsets);
     }
-    this.context.offset(partitionOffsets);
   }
 
   private byte[] toBytes(String source, Object input) {

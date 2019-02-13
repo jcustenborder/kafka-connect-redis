@@ -129,6 +129,14 @@ public class RedisSinkTask extends SinkTask {
     return result;
   }
 
+  static String formatLocation(SinkRecord record) {
+    return String.format(
+        "topic = %s partition = %s offset = %s",
+        record.topic(),
+        record.kafkaPartition(),
+        record.kafkaOffset()
+    );
+  }
 
   @Override
   public void put(Collection<SinkRecord> records) {
@@ -140,10 +148,19 @@ public class RedisSinkTask extends SinkTask {
     TopicPartitionCounter counter = new TopicPartitionCounter();
 
     for (SinkRecord record : records) {
+      log.trace("put() - Processing record %s", formatLocation(record));
       if (null == record.key()) {
-        throw new DataException("The key for the record cannot be null.");
+        throw new DataException(
+            "The key for the record cannot be null. " + formatLocation(record)
+        );
       }
       final byte[] key = toBytes("key", record.key());
+      if (null == key || key.length == 0) {
+        throw new DataException(
+            "The key cannot be an empty byte array. " + formatLocation(record)
+        );
+      }
+
       final byte[] value = toBytes("value", record.value());
 
       SinkOperation.Type currentOperationType;

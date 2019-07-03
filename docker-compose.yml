@@ -17,7 +17,7 @@
 version: "2"
 services:
   zookeeper:
-    image: confluentinc/cp-zookeeper:4.0.0
+    image: confluentinc/cp-zookeeper:5.2.1
     environment:
       ZOOKEEPER_CLIENT_PORT: 2181
       zk_id: "1"
@@ -25,8 +25,8 @@ services:
       - "2181:2181"
   kafka:
     hostname: kafka
-    image: confluentinc/cp-kafka:4.0.0
-    links:
+    image: confluentinc/cp-kafka:5.2.1
+    depends_on:
       - zookeeper
     ports:
       - "9092:9092"
@@ -35,8 +35,8 @@ services:
       KAFKA_ADVERTISED_LISTENERS: "PLAINTEXT://:9092"
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
   schema-registry:
-    image: confluentinc/cp-schema-registry:4.0.0
-    links:
+    image: confluentinc/cp-schema-registry:5.2.1
+    depends_on:
       - kafka
       - zookeeper
     ports:

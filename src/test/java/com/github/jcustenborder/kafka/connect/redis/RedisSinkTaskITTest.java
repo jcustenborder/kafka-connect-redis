@@ -51,8 +51,8 @@ import static org.mockito.Mockito.when;
 @Compose(
     dockerComposePath = "src/test/resources/docker-compose.yml"
 )
-public class RedisSinkTaskIT {
-  private static final Logger log = LoggerFactory.getLogger(RedisSinkTaskIT.class);
+public class RedisSinkTaskITTest {
+  private static final Logger log = LoggerFactory.getLogger(RedisSinkTaskITTest.class);
 
 
   RedisSinkTask task;

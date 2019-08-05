@@ -4,7 +4,6 @@ import com.google.common.net.HostAndPort;
 import org.apache.kafka.common.config.ConfigException;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 
 import java.io.File;
@@ -95,7 +94,6 @@ public class RedisSinkConnectorConfigTest {
         assertEquals(config.hosts, result);
     }
 
-    @Disabled("Disable till jcustenborder/connect-utils/pull/165 gets merged. Error with ConfigUtils for now.")
     @Test
     public void testSetHostsConfig() {
         props.put(RedisSinkConnectorConfig.HOSTS_CONFIG, "127.4.5.7:6345,152.4.3.2");
@@ -221,14 +219,14 @@ public class RedisSinkConnectorConfigTest {
     @Test
     public void testDefaultSocketKeepAliveConfig() {
         RedisSinkConnectorConfig config = new RedisSinkConnectorConfig(props);
-        assertEquals(config.keepAliveEnabled, true);
+        assertEquals(config.keepAliveEnabled, false);
     }
 
     @Test
     public void testSetSocketKeepAliveConfig() {
-        props.put(RedisSinkConnectorConfig.SOCKET_KEEP_ALIVE_CONFIG, "false");
+        props.put(RedisSinkConnectorConfig.SOCKET_KEEP_ALIVE_CONFIG, "true");
         RedisSinkConnectorConfig config = new RedisSinkConnectorConfig(props);
-        assertEquals(config.keepAliveEnabled, false);
+        assertEquals(config.keepAliveEnabled, true);
     }
 
     @Test

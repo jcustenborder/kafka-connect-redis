@@ -17,9 +17,6 @@ package com.github.jcustenborder.kafka.connect.redis;
 
 import com.github.jcustenborder.kafka.connect.utils.BaseDocumentationTest;
 
-public class DocumentionTest extends BaseDocumentationTest {
-  @Override
-  protected String[] packages() {
-    return new String[]{this.getClass().getPackage().getName()};
-  }
+public class DocumentationTest extends BaseDocumentationTest {
+
 }

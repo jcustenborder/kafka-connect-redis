@@ -13,10 +13,14 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-@Title("Redis")
 @Introduction("The Redis plugin is a collection of connectors that are used to interact with a " +
-    "Redis cluster.")
+        "Redis cluster.")
+@Title("Redis")
+@PluginOwner("jcustenborder")
+@PluginName("kafka-connect-redis")
 package com.github.jcustenborder.kafka.connect.redis;
 
 import com.github.jcustenborder.kafka.connect.utils.config.Introduction;
+import com.github.jcustenborder.kafka.connect.utils.config.PluginName;
+import com.github.jcustenborder.kafka.connect.utils.config.PluginOwner;
 import com.github.jcustenborder.kafka.connect.utils.config.Title;

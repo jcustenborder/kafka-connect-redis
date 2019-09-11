@@ -218,6 +218,7 @@ class RedisConnectorConfig extends AbstractConfig {
       RedisURI.Builder builder = RedisURI.builder();
       builder.withHost(host.getHost());
       builder.withPort(host.getPort());
+      builder.withDatabase(this.database);
       if (!Strings.isNullOrEmpty(this.password)) {
         builder.withPassword(this.password);
       }

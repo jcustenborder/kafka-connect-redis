@@ -16,6 +16,10 @@
 package com.github.jcustenborder.kafka.connect.redis;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.node.ArrayNode;
+import com.fasterxml.jackson.databind.node.JsonNodeFactory;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.github.jcustenborder.kafka.connect.utils.VersionUtil;
 import com.github.jcustenborder.kafka.connect.utils.data.SinkOffsetState;
 import com.github.jcustenborder.kafka.connect.utils.data.TopicPartitionCounter;
@@ -24,6 +28,14 @@ import com.google.common.base.Charsets;
 import io.lettuce.core.KeyValue;
 import io.lettuce.core.RedisFuture;
 import org.apache.kafka.common.TopicPartition;
+import org.apache.kafka.connect.data.ConnectSchema;
+import org.apache.kafka.connect.data.Date;
+import org.apache.kafka.connect.data.Decimal;
+import org.apache.kafka.connect.data.Field;
+import org.apache.kafka.connect.data.Schema;
+import org.apache.kafka.connect.data.Struct;
+import org.apache.kafka.connect.data.Time;
+import org.apache.kafka.connect.data.Timestamp;
 import org.apache.kafka.connect.errors.DataException;
 import org.apache.kafka.connect.errors.RetriableException;
 import org.apache.kafka.connect.sink.SinkRecord;
@@ -32,6 +44,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
+import java.math.BigDecimal;
+import java.nio.ByteBuffer;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
@@ -46,6 +61,8 @@ import java.util.stream.Collectors;
 
 public class RedisSinkTask extends SinkTask {
   private static final Logger log = LoggerFactory.getLogger(RedisSinkTask.class);
+  private static final SimpleDateFormat ISO_DATE_FORMAT = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'");
+  private static final SimpleDateFormat TIME_FORMAT = new SimpleDateFormat("HH:mm:ss.SSSZ");
 
   @Override
   public String version() {
@@ -115,6 +132,13 @@ public class RedisSinkTask extends SinkTask {
       result = (byte[]) input;
     } else if (null == input) {
       result = null;
+    } else if (input instanceof Struct) {
+      Struct struct = (Struct) input;
+      ObjectNode node = JsonNodeFactory.instance.objectNode();
+      for (Field field : struct.schema().fields()) {
+        node.set(field.name(), convertToJson(field.schema(), struct.get(field)));
+      }
+      result = node.toString().getBytes(this.config.charset);
     } else {
       throw new DataException(
           String.format(
@@ -129,6 +153,132 @@ public class RedisSinkTask extends SinkTask {
 
     return result;
   }
+  private static JsonNode convertToJson(Schema schema, Object logicalValue) {
+    if (logicalValue == null) {
+      if (schema == null) // Any schema is valid and we don't have a default, so treat this as an optional schema
+        return null;
+      if (schema.defaultValue() != null)
+        return convertToJson(schema, schema.defaultValue());
+      if (schema.isOptional())
+        return JsonNodeFactory.instance.nullNode();
+      throw new DataException("Conversion error: null value for field that is required and has no default value");
+    }
+
+    try {
+      final Schema.Type schemaType;
+      if (schema == null) {
+        schemaType = ConnectSchema.schemaType(logicalValue.getClass());
+        if (schemaType == null)
+          throw new DataException("Java class " + logicalValue.getClass() + " does not have corresponding schema type.");
+      } else {
+        schemaType = schema.type();
+      }
+      switch (schemaType) {
+        case INT8:
+          return JsonNodeFactory.instance.numberNode((Byte) logicalValue);
+        case INT16:
+          return JsonNodeFactory.instance.numberNode((Short) logicalValue);
+        case INT32:
+          if (schema != null && Date.LOGICAL_NAME.equals(schema.name())) {
+            return JsonNodeFactory.instance.textNode(ISO_DATE_FORMAT.format((java.util.Date) logicalValue));
+          }
+          if (schema != null && Time.LOGICAL_NAME.equals(schema.name())) {
+            return JsonNodeFactory.instance.textNode(TIME_FORMAT.format((java.util.Date) logicalValue));
+          }
+          return JsonNodeFactory.instance.numberNode((Integer) logicalValue);
+        case INT64:
+          String schemaName = schema.name();
+          if (Timestamp.LOGICAL_NAME.equals(schemaName)) {
+            return JsonNodeFactory.instance.numberNode(Timestamp.fromLogical(schema, (java.util.Date) logicalValue));
+          }
+          return JsonNodeFactory.instance.numberNode((Long) logicalValue);
+        case FLOAT32:
+          return JsonNodeFactory.instance.numberNode((Float) logicalValue);
+        case FLOAT64:
+          return JsonNodeFactory.instance.numberNode((Double) logicalValue);
+        case BOOLEAN:
+          return JsonNodeFactory.instance.booleanNode((Boolean) logicalValue);
+        case STRING:
+          CharSequence charSeq = (CharSequence) logicalValue;
+          return JsonNodeFactory.instance.textNode(charSeq.toString());
+        case BYTES:
+          if (Decimal.LOGICAL_NAME.equals(schema.name())) {
+            return JsonNodeFactory.instance.numberNode((BigDecimal) logicalValue);
+          }
+
+          byte[] valueArr = null;
+          if (logicalValue instanceof byte[])
+            valueArr = (byte[]) logicalValue;
+          else if (logicalValue instanceof ByteBuffer)
+            valueArr = ((ByteBuffer) logicalValue).array();
+
+          if (valueArr == null)
+            throw new DataException("Invalid type for bytes type: " + logicalValue.getClass());
+
+          return JsonNodeFactory.instance.binaryNode(valueArr);
+
+        case ARRAY: {
+          Collection collection = (Collection) logicalValue;
+          ArrayNode list = JsonNodeFactory.instance.arrayNode();
+          for (Object elem : collection) {
+            Schema valueSchema = schema == null ? null : schema.valueSchema();
+            JsonNode fieldValue = convertToJson(valueSchema, elem);
+            list.add(fieldValue);
+          }
+          return list;
+        }
+        case MAP: {
+          Map<?, ?> map = (Map<?, ?>) logicalValue;
+          // If true, using string keys and JSON object; if false, using non-string keys and Array-encoding
+          boolean objectMode;
+          if (schema == null) {
+            objectMode = true;
+            for (Map.Entry<?, ?> entry : map.entrySet()) {
+              if (!(entry.getKey() instanceof String)) {
+                objectMode = false;
+                break;
+              }
+            }
+          } else {
+            objectMode = schema.keySchema().type() == Schema.Type.STRING;
+          }
+          ObjectNode obj = null;
+          ArrayNode list = null;
+          if (objectMode)
+            obj = JsonNodeFactory.instance.objectNode();
+          else
+            list = JsonNodeFactory.instance.arrayNode();
+          for (Map.Entry<?, ?> entry : map.entrySet()) {
+            Schema keySchema = schema == null ? null : schema.keySchema();
+            Schema valueSchema = schema == null ? null : schema.valueSchema();
+            JsonNode mapKey = convertToJson(keySchema, entry.getKey());
+            JsonNode mapValue = convertToJson(valueSchema, entry.getValue());
+
+            if (objectMode)
+              obj.set(mapKey.asText(), mapValue);
+            else
+              list.add(JsonNodeFactory.instance.arrayNode().add(mapKey).add(mapValue));
+          }
+          return objectMode ? obj : list;
+        }
+        case STRUCT: {
+          Struct struct = (Struct) logicalValue;
+          if (struct.schema() != schema)
+            throw new DataException("Mismatching schema.");
+          ObjectNode obj = JsonNodeFactory.instance.objectNode();
+          for (Field field : schema.fields()) {
+            obj.set(field.name(), convertToJson(field.schema(), struct.get(field)));
+          }
+          return obj;
+        }
+      }
+
+      throw new DataException("Couldn't convert " + logicalValue + " to JSON.");
+    } catch (ClassCastException e) {
+      throw new DataException("Invalid type for " + schema.type() + ": " + logicalValue.getClass());
+    }
+  }
+
 
   static String formatLocation(SinkRecord record) {
     return String.format(
@@ -169,7 +319,7 @@ public class RedisSinkTask extends SinkTask {
       if (null == value) {
         currentOperationType = SinkOperation.Type.DELETE;
       } else {
-        currentOperationType = SinkOperation.Type.SET;
+        currentOperationType = config.type;
       }
 
       if (currentOperationType != operation.type) {

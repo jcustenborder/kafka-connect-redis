@@ -34,6 +34,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
+import static com.github.jcustenborder.kafka.connect.redis.RedisSinkConnectorConfig.INSERTION_TYPE_CONF;
 import static com.github.jcustenborder.kafka.connect.utils.SinkRecordHelper.write;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -87,8 +88,12 @@ public class RedisSinkTaskTest {
     RedisFuture<String> setFuture = mock(RedisFuture.class);
     when(setFuture.await(anyLong(), any(TimeUnit.class))).thenReturn(true);
     RedisFuture<Long> deleteFuture = mock(RedisFuture.class);
+    RedisFuture<Long> pushFuture = mock(RedisFuture.class);
+    when(pushFuture.await(anyLong(), any(TimeUnit.class))).thenReturn(true);
     when(deleteFuture.await(anyLong(), any(TimeUnit.class))).thenReturn(true);
     when(asyncCommands.mset(anyMap())).thenReturn(setFuture);
+    when(asyncCommands.lpush(any(), any())).thenReturn(pushFuture);
+    when(asyncCommands.rpush(any(), any())).thenReturn(pushFuture);
     when(asyncCommands.del(any())).thenReturn(deleteFuture);
     task.config = new RedisSinkConnectorConfig(
         ImmutableMap.of()
@@ -148,6 +153,50 @@ public class RedisSinkTaskTest {
     inOrder.verify(asyncCommands).mset(anyMap());
     inOrder.verify(asyncCommands).del(any(byte[].class));
     inOrder.verify(asyncCommands, times(2)).mset(anyMap());
+  }
+
+  @Test
+  public void lpush() throws InterruptedException {
+    List<SinkRecord> records = Arrays.asList(
+            record("set1", "asdf"),
+            record("set2", "asdf"),
+            record("delete1", null),
+            record("set3", "asdf"),
+            record("set4", "asdf")
+    );
+
+    task.config = new RedisSinkConnectorConfig(
+            ImmutableMap.of(INSERTION_TYPE_CONF, SinkOperation.Type.LPUSH.name())
+    );
+    task.put(records);
+
+    InOrder inOrder = Mockito.inOrder(asyncCommands);
+    inOrder.verify(asyncCommands, times(2)).lpush(any(),any());
+    inOrder.verify(asyncCommands).del(any(byte[].class));
+    inOrder.verify(asyncCommands, times(2)).lpush(any(),any());
+    inOrder.verify(asyncCommands).mset(anyMap());
+  }
+
+  @Test
+  public void rpush() throws InterruptedException {
+    List<SinkRecord> records = Arrays.asList(
+            record("set1", "asdf"),
+            record("set2", "asdf"),
+            record("delete1", null),
+            record("set3", "asdf"),
+            record("set4", "asdf")
+    );
+
+    task.config = new RedisSinkConnectorConfig(
+            ImmutableMap.of(INSERTION_TYPE_CONF, SinkOperation.Type.RPUSH.name())
+    );
+    task.put(records);
+
+    InOrder inOrder = Mockito.inOrder(asyncCommands);
+    inOrder.verify(asyncCommands, times(2)).rpush(any(),any());
+    inOrder.verify(asyncCommands).del(any(byte[].class));
+    inOrder.verify(asyncCommands, times(2)).rpush(any(),any());
+    inOrder.verify(asyncCommands).mset(anyMap());
   }
 
 }

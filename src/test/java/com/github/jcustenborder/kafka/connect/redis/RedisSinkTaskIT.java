@@ -36,6 +36,7 @@ import org.slf4j.LoggerFactory;
 
 import java.net.InetSocketAddress;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -170,6 +171,116 @@ public class RedisSinkTaskIT {
         .toArray(byte[][]::new);
     final long actual = this.task.session.asyncCommands().exists(keys).get();
     assertEquals(0L, actual, "All of the keys should be removed from Redis.");
+  }
+
+  @Test
+  public void lpushWrite(@Port(container = "redis", internalPort = 6379) InetSocketAddress address) throws ExecutionException, InterruptedException {
+    log.info("address = {}", address);
+    final String topic = "lpushWrite";
+    SinkTaskContext context = mock(SinkTaskContext.class);
+    when(context.assignment()).thenReturn(ImmutableSet.of(new TopicPartition(topic, 1)));
+    this.task.initialize(context);
+    this.task.start(
+            ImmutableMap.of(
+                    RedisSinkConnectorConfig.HOSTS_CONFIG, String.format("%s:%s", address.getHostString(), address.getPort()),
+                    RedisSinkConnectorConfig.INSERTION_TYPE_CONF, SinkOperation.Type.LPUSH.name()
+            )
+    );
+
+    final int count = 50;
+    final Map<String, List<String>> expected = new LinkedHashMap<>(count);
+    final List<SinkRecord> records = new ArrayList<>(count);
+
+    for (int i = 0; i < count; i++) {
+      final String key = String.format("lpushWrite%s", i);
+      final String value = String.format("This is value %s", i);
+      final String otherValue = String.format("This is another value %s", i);
+      records.add(
+              write(topic,
+                      new SchemaAndValue(Schema.STRING_SCHEMA, key),
+                      new SchemaAndValue(Schema.STRING_SCHEMA, value)
+              )
+      );
+      records.add(
+              write(topic,
+                      new SchemaAndValue(Schema.STRING_SCHEMA, key),
+                      new SchemaAndValue(Schema.STRING_SCHEMA, otherValue)
+              )
+      );
+
+      expected.put(key, Arrays.asList(value, otherValue ));
+    }
+    this.task.put(records);
+
+    final byte[][] keys = expected.keySet().stream()
+            .map(s -> s.getBytes(Charsets.UTF_8))
+            .toArray(byte[][]::new);
+    for(byte[] byteKey: keys) {
+      RedisFuture<List<byte[]>> result = this.task.session.asyncCommands().lrange(byteKey, 0, -1);
+      List<byte[]> actual = result.get();
+      assertEquals(2, actual.size());
+      final String key = new String(byteKey, Charsets.UTF_8);
+      final String value = new String(actual.get(0), Charsets.UTF_8);
+      final String otherValue = new String(actual.get(1), Charsets.UTF_8);
+      final List<String> expectedValue = expected.get(key);
+      assertEquals(value, expectedValue.get(1), String.format("Value for key(%s) does not match.", key));
+      assertEquals(otherValue, expectedValue.get(0), String.format("Value for key(%s) does not match.", key));
+    }
+  }
+
+  @Test
+  public void rpushWrite(@Port(container = "redis", internalPort = 6379) InetSocketAddress address) throws ExecutionException, InterruptedException {
+    log.info("address = {}", address);
+    final String topic = "rpushWrite";
+    SinkTaskContext context = mock(SinkTaskContext.class);
+    when(context.assignment()).thenReturn(ImmutableSet.of(new TopicPartition(topic, 1)));
+    this.task.initialize(context);
+    this.task.start(
+            ImmutableMap.of(
+                    RedisSinkConnectorConfig.HOSTS_CONFIG, String.format("%s:%s", address.getHostString(), address.getPort()),
+                    RedisSinkConnectorConfig.INSERTION_TYPE_CONF, SinkOperation.Type.RPUSH.name()
+            )
+    );
+
+    final int count = 50;
+    final Map<String, List<String>> expected = new LinkedHashMap<>(count);
+    final List<SinkRecord> records = new ArrayList<>(count);
+
+    for (int i = 0; i < count; i++) {
+      final String key = String.format("rpushWrite%s", i);
+      final String value = String.format("This is value %s", i);
+      final String otherValue = String.format("This is another value %s", i);
+      records.add(
+              write(topic,
+                      new SchemaAndValue(Schema.STRING_SCHEMA, key),
+                      new SchemaAndValue(Schema.STRING_SCHEMA, value)
+              )
+      );
+      records.add(
+              write(topic,
+                      new SchemaAndValue(Schema.STRING_SCHEMA, key),
+                      new SchemaAndValue(Schema.STRING_SCHEMA, otherValue)
+              )
+      );
+
+      expected.put(key, Arrays.asList(value, otherValue ));
+    }
+    this.task.put(records);
+
+    final byte[][] keys = expected.keySet().stream()
+            .map(s -> s.getBytes(Charsets.UTF_8))
+            .toArray(byte[][]::new);
+    for(byte[] byteKey: keys) {
+      RedisFuture<List<byte[]>> result = this.task.session.asyncCommands().lrange(byteKey, 0, -1);
+      List<byte[]> actual = result.get();
+      assertEquals(2, actual.size());
+      final String key = new String(byteKey, Charsets.UTF_8);
+      final String value = new String(actual.get(0), Charsets.UTF_8);
+      final String otherValue = new String(actual.get(1), Charsets.UTF_8);
+      final List<String> expectedValue = expected.get(key);
+      assertEquals(value, expectedValue.get(0), String.format("Value for key(%s) does not match.", key));
+      assertEquals(otherValue, expectedValue.get(1), String.format("Value for key(%s) does not match.", key));
+    }
   }
 
   @AfterEach

@@ -26,6 +26,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
+import java.util.function.BiFunction;
 
 abstract class SinkOperation {
   private static final Logger log = LoggerFactory.getLogger(SinkOperation.class);
@@ -41,6 +42,8 @@ abstract class SinkOperation {
 
   public enum Type {
     SET,
+    LPUSH,
+    RPUSH,
     DELETE,
     NONE
   }
@@ -50,6 +53,12 @@ abstract class SinkOperation {
   public abstract void execute(RedisClusterAsyncCommands<byte[], byte[]> asyncCommands) throws InterruptedException;
 
   public abstract int size();
+
+  protected void wait(List<RedisFuture<?>> futures) throws InterruptedException {
+    for (RedisFuture future: futures) {
+      wait(future);
+    }
+  }
 
   protected void wait(RedisFuture<?> future) throws InterruptedException {
     log.debug("wait() - future = {}", future);
@@ -67,6 +76,12 @@ abstract class SinkOperation {
     switch (type) {
       case SET:
         result = new SetOperation(config, size);
+        break;
+      case LPUSH:
+        result = new LPushOperation(config, size);
+        break;
+      case RPUSH:
+        result = new RPushOperation(config, size);
         break;
       case DELETE:
         result = new DeleteOperation(config, size);
@@ -128,6 +143,60 @@ abstract class SinkOperation {
       return this.sets.size();
     }
   }
+
+  static abstract class PushOperation extends SinkOperation {
+
+    final Map<byte[], List<byte[]>> pushes;
+
+    PushOperation(RedisSinkConnectorConfig config, int size, Type type) {
+      super(type, config);
+      this.pushes = new LinkedHashMap<>(size);
+    }
+
+    @Override
+    public void add(byte[] key, byte[] value) {
+      List<byte[]> keyPushes = pushes.get(key);
+      if (keyPushes == null) keyPushes = new ArrayList<>();
+      keyPushes.add(value);
+      this.pushes.put(key, keyPushes);
+    }
+
+    protected void execute(BiFunction<byte[], byte[][], RedisFuture<Long>> function) throws InterruptedException {
+      log.debug("execute() - Calling {} with {} value(s)", this.type, this.pushes.size());
+      List<RedisFuture<?>> futures = new ArrayList<>();
+      for (Map.Entry<byte[], List<byte[]>> entry: pushes.entrySet()) {
+        byte[][] values = entry.getValue().toArray(new byte[0][0]);
+        futures.add(function.apply(entry.getKey(), values));
+      }
+      wait(futures);
+    }
+
+    @Override
+    public int size() {
+      return this.pushes.size();
+    }
+  }
+
+  static class LPushOperation extends PushOperation {
+    @Override
+    public void execute(RedisClusterAsyncCommands<byte[], byte[]> asyncCommands) throws InterruptedException {
+      execute(asyncCommands::lpush);
+    }
+    LPushOperation(RedisSinkConnectorConfig config, int size) {
+      super(config, size, Type.LPUSH);
+    }
+  }
+
+  static class RPushOperation extends PushOperation {
+    @Override
+    public void execute(RedisClusterAsyncCommands<byte[], byte[]> asyncCommands) throws InterruptedException {
+      execute(asyncCommands::rpush);
+    }
+    RPushOperation(RedisSinkConnectorConfig config, int size) {
+      super(config, size, Type.RPUSH);
+    }
+  }
+
 
   static class DeleteOperation extends SinkOperation {
     final List<byte[]> deletes;

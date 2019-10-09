@@ -32,14 +32,20 @@ class RedisSinkConnectorConfig extends RedisConnectorConfig {
   public final static String CHARSET_CONF = "redis.charset";
   public final static String CHARSET_DOC = "The character set to use for String key and values.";
 
+  public final static String INSERTION_TYPE_CONF = "redis.insertion.type";
+  public final static String INSERTION_TYPE_DOC = "The type of insertion : SET, LPUSH, RPUSH";
+
   public final long operationTimeoutMs;
   public final Charset charset;
+  public final SinkOperation.Type type;
 
   public RedisSinkConnectorConfig(Map<?, ?> originals) {
     super(config(), originals);
     this.operationTimeoutMs = getLong(OPERATION_TIMEOUT_MS_CONF);
     String charset = getString(CHARSET_CONF);
     this.charset = Charset.forName(charset);
+    String type = getString(INSERTION_TYPE_CONF);
+    this.type = SinkOperation.Type.valueOf(type);
   }
 
   public static ConfigDef config() {
@@ -58,6 +64,14 @@ class RedisSinkConnectorConfig extends RedisConnectorConfig {
                 .validator(Validators.validCharset())
                 .recommender(Recommenders.charset())
                 .importance(ConfigDef.Importance.LOW)
+                .build()
+        ).define(
+            ConfigKeyBuilder.of(INSERTION_TYPE_CONF, ConfigDef.Type.STRING)
+                .documentation(INSERTION_TYPE_DOC)
+                .defaultValue(SinkOperation.Type.SET.toString())
+                .validator(Validators.validEnum(SinkOperation.Type.class))
+                .recommender(Recommenders.enumValues(SinkOperation.Type.class))
+                .importance(ConfigDef.Importance.MEDIUM)
                 .build()
         );
   }

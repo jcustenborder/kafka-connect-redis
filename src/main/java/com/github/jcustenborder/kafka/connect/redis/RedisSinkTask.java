@@ -169,7 +169,7 @@ public class RedisSinkTask extends SinkTask {
       if (null == value) {
         currentOperationType = SinkOperation.Type.DELETE;
       } else {
-        currentOperationType = SinkOperation.Type.SET;
+        currentOperationType = config.type;
       }
 
       if (currentOperationType != operation.type) {

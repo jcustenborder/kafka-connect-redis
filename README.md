@@ -246,9 +246,9 @@ The SSL provider to use.
 
 
 
-##### `redis.connection.retry`
+##### `redis.connection.attempts`
 
-The number of attempt when connecting to redis
+The number of attempts when connecting to redis
 
 *Importance:* Medium
 
@@ -258,9 +258,9 @@ The number of attempt when connecting to redis
 
 
 
-##### `redis.connection.retryPause`
+##### `redis.connection.retry.delay.ms`
 
-The amount of milliseconds to wait between two redis connection attempt
+The amount of milliseconds to wait between two redis connection attempts
 
 *Importance:* Medium
 

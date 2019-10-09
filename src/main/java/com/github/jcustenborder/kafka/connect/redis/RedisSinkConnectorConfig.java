@@ -35,17 +35,17 @@ class RedisSinkConnectorConfig extends RedisConnectorConfig {
   public final static String INSERTION_TYPE_CONF = "redis.insertion.type";
   public final static String INSERTION_TYPE_DOC = "The type of insertion : SET, LPUSH, RPUSH";
 
-  public final static String CONNECTION_RETRY_CONF = "redis.connection.retry";
-  public final static String CONNECTION_RETRY_DOC = "The number of attempt when connecting to redis";
+  public final static String CONNECTION_ATTEMPTS_CONF = "redis.connection.attempts";
+  public final static String CONNECTION_ATTEMPTS_DOC = "The number of attempt when connecting to redis";
 
-  public final static String CONNECTION_RETRY_PAUSE_CONF = "redis.connection.retryPause";
-  public final static String CONNECTION_RETRY_PAUSE_DOC = "The amount of milliseconds to wait between two redis connection attempt";
+  public final static String CONNECTION_RETRY_DELAY_MS_CONF = "redis.connection.retry.delay.ms";
+  public final static String CONNECTION_RETRY_DELAY_MS_DOC = "The amount of milliseconds to wait between two redis connection attempt";
 
   public final long operationTimeoutMs;
   public final Charset charset;
   public final SinkOperation.Type type;
-  public final int retryPause;
-  public final int maxRetries;
+  public final int retryDelay;
+  public final int maxAttempts;
 
   public RedisSinkConnectorConfig(Map<?, ?> originals) {
     super(config(), originals);
@@ -54,8 +54,8 @@ class RedisSinkConnectorConfig extends RedisConnectorConfig {
     this.charset = Charset.forName(charset);
     String type = getString(INSERTION_TYPE_CONF);
     this.type = SinkOperation.Type.valueOf(type);
-    this.maxRetries = getInt(CONNECTION_RETRY_CONF);
-    this.retryPause = getInt(CONNECTION_RETRY_PAUSE_CONF);
+    this.maxAttempts = getInt(CONNECTION_ATTEMPTS_CONF);
+    this.retryDelay = getInt(CONNECTION_RETRY_DELAY_MS_CONF);
   }
 
   public static ConfigDef config() {
@@ -84,14 +84,14 @@ class RedisSinkConnectorConfig extends RedisConnectorConfig {
                 .importance(ConfigDef.Importance.MEDIUM)
                 .build()
         ).define(
-            ConfigKeyBuilder.of(CONNECTION_RETRY_CONF, ConfigDef.Type.INT)
-                    .documentation(CONNECTION_RETRY_DOC)
+            ConfigKeyBuilder.of(CONNECTION_ATTEMPTS_CONF, ConfigDef.Type.INT)
+                    .documentation(CONNECTION_ATTEMPTS_DOC)
                     .defaultValue(3)
                     .importance(ConfigDef.Importance.MEDIUM)
                     .build()
         ).define(
-            ConfigKeyBuilder.of(CONNECTION_RETRY_PAUSE_CONF, ConfigDef.Type.INT)
-                    .documentation(CONNECTION_RETRY_PAUSE_DOC)
+            ConfigKeyBuilder.of(CONNECTION_RETRY_DELAY_MS_CONF, ConfigDef.Type.INT)
+                    .documentation(CONNECTION_RETRY_DELAY_MS_DOC)
                     .defaultValue(2000)
                     .validator(ConfigDef.Range.atLeast(100))
                     .importance(ConfigDef.Importance.MEDIUM)

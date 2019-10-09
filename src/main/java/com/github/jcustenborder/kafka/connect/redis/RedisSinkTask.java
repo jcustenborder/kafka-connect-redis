@@ -108,18 +108,17 @@ public class RedisSinkTask extends SinkTask {
   }
 
   private void connectToRedis() {
-    int count = 0;
+    int attempts = 1;
     while (true) {
       try {
         this.session = RedisSessionImpl.create(this.config);
         break;
       } catch (RedisConnectionException e) {
-        ++count;
-        log.info("Fail to connect to Redis. Will retry in {}ms. Tentative {} on {} ", config.retryPause, count, config.maxRetries);
+        log.warn("Fail to connect to Redis. Will retry in {}ms. Tentative {} on {} ", config.retryDelay, attempts, config.maxAttempts);
+        if (attempts >= config.maxAttempts) throw e;
         try {
-          Thread.sleep(config.retryPause);
+          Thread.sleep(config.retryDelay);
         } catch (InterruptedException ignored) { }
-        if (count > config.maxRetries) throw e;
       }
     }
   }

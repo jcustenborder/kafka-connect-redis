@@ -22,6 +22,7 @@ import com.github.jcustenborder.kafka.connect.utils.data.TopicPartitionCounter;
 import com.github.jcustenborder.kafka.connect.utils.jackson.ObjectMapperFactory;
 import com.google.common.base.Charsets;
 import io.lettuce.core.KeyValue;
+import io.lettuce.core.RedisConnectionException;
 import io.lettuce.core.RedisFuture;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.connect.errors.DataException;
@@ -70,7 +71,8 @@ public class RedisSinkTask extends SinkTask {
   @Override
   public void start(Map<String, String> settings) {
     this.config = new RedisSinkConnectorConfig(settings);
-    this.session = RedisSessionImpl.create(this.config);
+
+    connectToRedis();
 
     final Set<TopicPartition> assignment = this.context.assignment();
     if (!assignment.isEmpty()) {
@@ -102,6 +104,23 @@ public class RedisSinkTask extends SinkTask {
         }
       }
       this.context.offset(partitionOffsets);
+    }
+  }
+
+  private void connectToRedis() {
+    int count = 0;
+    while (true) {
+      try {
+        this.session = RedisSessionImpl.create(this.config);
+        break;
+      } catch (RedisConnectionException e) {
+        ++count;
+        log.info("Fail to connect to Redis. Will retry in {}ms. Tentative {} on {} ", config.retryPause, count, config.maxRetries);
+        try {
+          Thread.sleep(config.retryPause);
+        } catch (InterruptedException ignored) { }
+        if (count > config.maxRetries) throw e;
+      }
     }
   }
 

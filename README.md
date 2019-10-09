@@ -246,6 +246,32 @@ The SSL provider to use.
 
 
 
+##### `redis.connection.retry`
+
+The number of attempt when connecting to redis
+
+*Importance:* Medium
+
+*Type:* Integer
+
+*Default Value:* 3
+
+
+
+##### `redis.connection.retryPause`
+
+The amount of milliseconds to wait between two redis connection attempt
+
+*Importance:* Medium
+
+*Type:* Integer
+
+*Default Value:* 2000
+
+*Validator:* Must be at least 100
+
+
+
 
 
 #### Examples

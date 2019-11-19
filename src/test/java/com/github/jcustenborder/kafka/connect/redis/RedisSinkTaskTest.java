@@ -23,6 +23,7 @@ import io.lettuce.core.cluster.api.async.RedisAdvancedClusterAsyncCommands;
 import io.lettuce.core.cluster.api.async.RedisClusterAsyncCommands;
 import org.apache.kafka.connect.data.Schema;
 import org.apache.kafka.connect.data.SchemaAndValue;
+import org.apache.kafka.connect.data.SchemaBuilder;
 import org.apache.kafka.connect.errors.DataException;
 import org.apache.kafka.connect.sink.SinkRecord;
 import org.junit.jupiter.api.BeforeEach;
@@ -31,21 +32,24 @@ import org.mockito.InOrder;
 import org.mockito.Mockito;
 
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 import static com.github.jcustenborder.kafka.connect.utils.SinkRecordHelper.write;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyLong;
-import static org.mockito.ArgumentMatchers.anyMap;
+import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.withSettings;
 
 public class RedisSinkTaskTest {
+
+  private static final Schema MAP_SCHEMA = new SchemaBuilder(Schema.Type.MAP).build();
+
   long offset = 1;
 
   SinkRecord record(String k, String v) {
@@ -109,7 +113,7 @@ public class RedisSinkTaskTest {
       );
     });
     assertEquals(
-        "The key for the record must be String or Bytes. Consider using the ByteArrayConverter or StringConverter if the data is stored in Kafka in the format needed in Redis. Another option is to use a single message transformation to transform the data before it is written to Redis.",
+        "The key for the record must be Map, String or Bytes, but actually is class java.lang.Integer. Consider using the JsonConverter, ByteArrayConverter or StringConverter if the data is stored in Kafka in the format needed in Redis. Another option is to use a single message transformation to transform the data before it is written to Redis.",
         exception.getMessage());
   }
 
@@ -127,7 +131,7 @@ public class RedisSinkTaskTest {
     });
 
     assertEquals(
-        "The value for the record must be String or Bytes. Consider using the ByteArrayConverter or StringConverter if the data is stored in Kafka in the format needed in Redis. Another option is to use a single message transformation to transform the data before it is written to Redis.",
+        "The value for the record must be Map, String or Bytes, but actually is class java.lang.Integer. Consider using the JsonConverter, ByteArrayConverter or StringConverter if the data is stored in Kafka in the format needed in Redis. Another option is to use a single message transformation to transform the data before it is written to Redis.",
         exception.getMessage()
     );
   }
@@ -150,4 +154,43 @@ public class RedisSinkTaskTest {
     inOrder.verify(asyncCommands, times(2)).mset(anyMap());
   }
 
+  @Test
+  public void ensureMapSupportInKey() {
+
+    Map<String, Object> keyMap = new HashMap<>();
+    keyMap.put("foo", "bar");
+
+    this.task.put(
+            Arrays.asList(
+                    write("topic",
+                            new SchemaAndValue(MAP_SCHEMA, keyMap),
+                            new SchemaAndValue(Schema.STRING_SCHEMA, "asdf")
+                    )
+            )
+    );
+
+    InOrder inOrder = Mockito.inOrder(asyncCommands);
+    inOrder.verify(asyncCommands, times(2)).mset(anyMap());
+  }
+
+  @Test
+  public void ensureMapSupportInValue() {
+
+    Map<String, Object> valueMap = new HashMap<>();
+    valueMap.put("foo1", "bar1");
+    valueMap.put("foo2", "bar2");
+    valueMap.put("foo3", "bar3");
+
+    this.task.put(
+            Arrays.asList(
+                    write("topic",
+                            new SchemaAndValue(Schema.STRING_SCHEMA, "asdf"),
+                            new SchemaAndValue(MAP_SCHEMA, valueMap)
+                    )
+            )
+    );
+
+    InOrder inOrder = Mockito.inOrder(asyncCommands);
+    inOrder.verify(asyncCommands, times(2)).mset(anyMap());
+  }
 }

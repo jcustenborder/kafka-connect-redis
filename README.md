@@ -14,7 +14,7 @@ The Redis Sink Connector is used to write data from Kafka to a Redis cache.
 
 ### Important
 
-This connector expects records from Kafka to have a key and value that are stored as bytes or a string. If your data is already in Kafka in the format that you want in Redis consider using the ByteArrayConverter or the StringConverter for this connector. Keep in this does not need to be configured in the worker properties and can be configured at the connector level. If your data is not sitting in Kafka in the format you wish to persist in Redis consider using a Single Message Transformation to convert the data to a byte or string representation before it is written to Redis.
+This connector expects records from Kafka to have a key and value that are stored as a map, bytes or a string. If your data is already in Kafka in the format that you want in Redis consider using the JsonConverter, ByteArrayConverter or the StringConverter for this connector. Keep in mind this does not need to be configured in the worker properties and can be configured at the connector level. If your data is not sitting in Kafka in the format you wish to persist in Redis consider using a Single Message Transformation to convert the data to a map, byte or string representation before it is written to Redis.
 ### Note
 
 This connector supports deletes. If the record stored in Kafka has a null value, this connector will send a delete with the corresponding key to Redis.

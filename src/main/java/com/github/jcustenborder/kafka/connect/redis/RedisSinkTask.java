@@ -21,6 +21,7 @@ import com.github.jcustenborder.kafka.connect.utils.data.SinkOffsetState;
 import com.github.jcustenborder.kafka.connect.utils.data.TopicPartitionCounter;
 import com.github.jcustenborder.kafka.connect.utils.jackson.ObjectMapperFactory;
 import com.google.common.base.Charsets;
+import com.google.common.base.Joiner;
 import io.lettuce.core.KeyValue;
 import io.lettuce.core.RedisFuture;
 import org.apache.kafka.common.TopicPartition;
@@ -113,16 +114,18 @@ public class RedisSinkTask extends SinkTask {
       result = s.getBytes(this.config.charset);
     } else if (input instanceof byte[]) {
       result = (byte[]) input;
+    } else if (input instanceof Map) {
+      result = Joiner.on(",").withKeyValueSeparator("=").join((Map) input).getBytes(this.config.charset);
     } else if (null == input) {
       result = null;
     } else {
       throw new DataException(
           String.format(
-              "The %s for the record must be String or Bytes. Consider using the ByteArrayConverter " +
-                  "or StringConverter if the data is stored in Kafka in the format needed in Redis. " +
-                  "Another option is to use a single message transformation to transform the data before " +
-                  "it is written to Redis.",
-              source
+              "The %s for the record must be Map, String or Bytes, but actually is %s. Consider using the " +
+                  "JsonConverter, ByteArrayConverter or StringConverter if the data is stored in Kafka in the format " +
+                  "needed in Redis. Another option is to use a single message transformation to transform the data " +
+                  "before it is written to Redis.",
+              source, input.getClass()
           )
       );
     }

@@ -23,12 +23,12 @@
     <parent>
         <groupId>com.github.jcustenborder.kafka.connect</groupId>
         <artifactId>kafka-connect-parent</artifactId>
-        <version>2.1.1-cp1</version>
+        <version>2.2.1-cp1</version>
     </parent>
     <artifactId>kafka-connect-redis</artifactId>
     <version>0.0.2-SNAPSHOT</version>
     <name>kafka-connect-redis</name>
-    <description>A Kafka Connect connector receiving data from redis.</description>
+    <description>A Kafka Connect plugin for interacting with Redis.</description>
     <url>https://github.com/jcustenborder/kafka-connect-redis</url>
     <inceptionYear>2017</inceptionYear>
     <licenses>
@@ -61,7 +61,7 @@
         <dependency>
             <groupId>io.lettuce</groupId>
             <artifactId>lettuce-core</artifactId>
-            <version>5.1.6.RELEASE</version>
+            <version>5.2.1.RELEASE</version>
         </dependency>
     </dependencies>
     <build>

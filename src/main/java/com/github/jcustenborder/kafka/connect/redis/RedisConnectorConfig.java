@@ -69,7 +69,13 @@ class RedisConnectorConfig extends AbstractConfig {
   static final String SSL_TRUSTSTORE_PATH_DOC = "The path to the SSL truststore.";
   public static final String SSL_TRUSTSTORE_PASSWORD_CONFIG = "redis.ssl.truststore.password";
   static final String SSL_TRUSTSTORE_PASSWORD_DOC = "The password for the SSL truststore.";
-  
+
+  public final static String CONNECTION_ATTEMPTS_CONF = "redis.connection.attempts";
+  public final static String CONNECTION_ATTEMPTS_DOC = "The number of attempt when connecting to redis.";
+
+  public final static String CONNECTION_RETRY_DELAY_MS_CONF = "redis.connection.retry.delay.ms";
+  public final static String CONNECTION_RETRY_DELAY_MS_DOC = "The amount of milliseconds to wait between redis connection attempts.";
+
   public final ClientMode clientMode;
   public final List<HostAndPort> hosts;
 
@@ -88,7 +94,8 @@ class RedisConnectorConfig extends AbstractConfig {
   public final String keystorePassword;
   public final File truststorePath;
   public final String truststorePassword;
-
+  public final int retryDelay;
+  public final int maxAttempts;
 
 
   public RedisConnectorConfig(ConfigDef config, Map<?, ?> originals) {
@@ -112,6 +119,8 @@ class RedisConnectorConfig extends AbstractConfig {
     final String trustPassword = getPassword(SSL_TRUSTSTORE_PASSWORD_CONFIG).value();
     this.keystorePassword = Strings.isNullOrEmpty(keystorePassword) ? null : keystorePassword;
     this.truststorePassword = Strings.isNullOrEmpty(trustPassword) ? null : trustPassword;
+    this.maxAttempts = getInt(CONNECTION_ATTEMPTS_CONF);
+    this.retryDelay = getInt(CONNECTION_RETRY_DELAY_MS_CONF);
   }
 
   public static ConfigDef config() {
@@ -206,6 +215,20 @@ class RedisConnectorConfig extends AbstractConfig {
             ConfigKeyBuilder.of(SSL_TRUSTSTORE_PASSWORD_CONFIG, ConfigDef.Type.PASSWORD)
                 .documentation(SSL_TRUSTSTORE_PASSWORD_DOC)
                 .defaultValue("")
+                .importance(ConfigDef.Importance.MEDIUM)
+                .build()
+        ).define(
+            ConfigKeyBuilder.of(CONNECTION_ATTEMPTS_CONF, ConfigDef.Type.INT)
+                .documentation(CONNECTION_ATTEMPTS_DOC)
+                .defaultValue(3)
+                .importance(ConfigDef.Importance.MEDIUM)
+                .validator(ConfigDef.Range.atLeast(1))
+                .build()
+        ).define(
+            ConfigKeyBuilder.of(CONNECTION_RETRY_DELAY_MS_CONF, ConfigDef.Type.INT)
+                .documentation(CONNECTION_RETRY_DELAY_MS_DOC)
+                .defaultValue(2000)
+                .validator(ConfigDef.Range.atLeast(100))
                 .importance(ConfigDef.Importance.MEDIUM)
                 .build()
         );

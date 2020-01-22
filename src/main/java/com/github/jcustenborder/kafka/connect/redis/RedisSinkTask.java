@@ -53,6 +53,7 @@ public class RedisSinkTask extends SinkTask {
   }
 
   RedisSinkConnectorConfig config;
+  RedisSessionFactory sessionFactory = new RedisSessionFactoryImpl();
   RedisSession session;
 
   static SinkOffsetState state(KeyValue<byte[], byte[]> input) {
@@ -66,11 +67,10 @@ public class RedisSinkTask extends SinkTask {
     }
   }
 
-
   @Override
   public void start(Map<String, String> settings) {
     this.config = new RedisSinkConnectorConfig(settings);
-    this.session = RedisSessionImpl.create(this.config);
+    this.session = this.sessionFactory.create(this.config);
 
     final Set<TopicPartition> assignment = this.context.assignment();
     if (!assignment.isEmpty()) {
@@ -225,7 +225,9 @@ public class RedisSinkTask extends SinkTask {
   @Override
   public void stop() {
     try {
-      this.session.close();
+      if (null != this.session) {
+        this.session.close();
+      }
     } catch (Exception e) {
       log.warn("Exception thrown", e);
     }

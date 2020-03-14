@@ -1,12 +1,12 @@
 /**
  * Copyright © 2017 Jeremy Custenborder (jcustenborder@gmail.com)
- *
+ * <p>
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- *
+ * <p>
  * http://www.apache.org/licenses/LICENSE-2.0
- *
+ * <p>
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -39,6 +39,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.ExecutionException;
 import java.util.stream.Collectors;
 
@@ -127,6 +128,60 @@ public class RedisSinkTaskIT {
       final String key = new String(kv.getKey(), Charsets.UTF_8);
       final String value = new String(kv.getValue(), Charsets.UTF_8);
       assertEquals(value, expected.get(key), String.format("Value for key(%s) does not match.", key));
+    }
+  }
+
+  @Test
+  public void putWriteAppend(@Port(container = "redis", internalPort = 6379) InetSocketAddress address) throws ExecutionException, InterruptedException {
+    log.info("address = {}", address);
+    final String topic = "putWrite";
+    SinkTaskContext context = mock(SinkTaskContext.class);
+    when(context.assignment()).thenReturn(ImmutableSet.of(new TopicPartition(topic, 1)));
+    this.task.initialize(context);
+    this.task.start(
+        ImmutableMap.of(
+            RedisSinkConnectorConfig.HOSTS_CONFIG, String.format("%s:%s", address.getHostString(), address.getPort()),
+            RedisSinkConnectorConfig.INSERT_MODE_CONFIG, RedisConnectorConfig.InsertMode.APPEND.toString()
+        )
+    );
+
+    final int count = 50;
+    final int numKeys = 5;
+    final Map<String, List<String>> expected = new LinkedHashMap<>(count);
+    final List<SinkRecord> records = new ArrayList<>(count);
+
+    for (int i = 0; i < count; i++) {
+      final String key = String.format("putWrite%s", i % numKeys);
+      final String value = String.format("This is value %s", i);
+      records.add(
+          write(topic,
+              new SchemaAndValue(Schema.STRING_SCHEMA, key),
+              new SchemaAndValue(Schema.STRING_SCHEMA, value)
+          )
+      );
+
+      expected.compute(key, (k, v) -> {
+        final List<String> toRet;
+        if (Objects.isNull(v)) {
+          toRet = new ArrayList<>();
+        } else {
+          toRet = v;
+        }
+
+        toRet.add(value);
+        return toRet;
+      });
+    }
+    this.task.put(records);
+
+    final byte[][] keys = expected.keySet().stream()
+        .map(s -> s.getBytes(Charsets.UTF_8))
+        .toArray(byte[][]::new);
+
+    final int curValue = 0;
+    for (byte[] key : keys) {
+        final List<byte[]> values = this.task.session.asyncCommands().lrange(key, 0, -1).get();
+        assertEquals(count / numKeys, values.size());
     }
   }
 

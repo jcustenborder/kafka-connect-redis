@@ -1,12 +1,12 @@
 /**
  * Copyright © 2017 Jeremy Custenborder (jcustenborder@gmail.com)
- *
+ * <p>
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- *
+ * <p>
  * http://www.apache.org/licenses/LICENSE-2.0
- *
+ * <p>
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -22,10 +22,13 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
+
+import static java.util.Objects.isNull;
 
 abstract class SinkOperation {
   private static final Logger log = LoggerFactory.getLogger(SinkOperation.class);
@@ -41,6 +44,7 @@ abstract class SinkOperation {
 
   public enum Type {
     SET,
+    LPUSH,
     DELETE,
     NONE
   }
@@ -67,6 +71,9 @@ abstract class SinkOperation {
     switch (type) {
       case SET:
         result = new SetOperation(config, size);
+        break;
+      case LPUSH:
+        result = new PushOperation(config, size);
         break;
       case DELETE:
         result = new DeleteOperation(config, size);
@@ -126,6 +133,68 @@ abstract class SinkOperation {
     @Override
     public int size() {
       return this.sets.size();
+    }
+  }
+
+  static class PushOperation extends SinkOperation {
+    final Map<ByteString, List<byte[]>> pushes;
+
+    PushOperation(RedisSinkConnectorConfig config, int size) {
+      super(Type.LPUSH, config);
+      this.pushes = new HashMap<>(size);
+    }
+
+    @Override
+    public void add(byte[] key, byte[] value) {
+      this.pushes.compute(ByteString.of(key), (k, v) -> computeValue(value, v));
+    }
+
+    @Override
+    public void execute(RedisClusterAsyncCommands<byte[], byte[]> asyncCommands) throws InterruptedException {
+      log.debug("Appending {} values to Redis", this.pushes.size());
+      try {
+        // We create an ArrayList here to force parallel execution since a list will always have a balanced split
+        // whereas a map might not depending on size
+        new ArrayList<>(this.pushes.entrySet())
+            .parallelStream()
+            .forEach(entry -> uncheckedWait(push(asyncCommands, entry.getKey().getBytes(), entry.getValue())));
+      } catch (final RuntimeException ex) {
+        if (ex.getCause() instanceof InterruptedException) {
+          throw (InterruptedException) ex.getCause();
+        }
+        throw ex;
+      }
+    }
+
+    @Override
+    public int size() {
+      return pushes.size();
+    }
+
+    private List<byte[]> computeValue(final byte[] value, final List<byte[]> existing) {
+      final List<byte[]> toRet;
+      if (isNull(existing)) {
+        toRet = new ArrayList<>(this.size());
+      } else {
+        toRet = existing;
+      }
+
+      toRet.add(value);
+      return toRet;
+    }
+
+    private RedisFuture<Long> push(RedisClusterAsyncCommands<byte[], byte[]> asyncCommands, final byte[] key, final List<byte[]> value) {
+      final byte[][] valueArray = value.toArray(new byte[value.size()][]);
+      return asyncCommands.lpush(key, valueArray);
+    }
+
+    private void uncheckedWait(final RedisFuture<Long> future) {
+      // Wrap checked exception to allow use in lambdas
+      try {
+        wait(future);
+      } catch (final InterruptedException ex) {
+        throw new RuntimeException("Interrupted", ex);
+      }
     }
   }
 

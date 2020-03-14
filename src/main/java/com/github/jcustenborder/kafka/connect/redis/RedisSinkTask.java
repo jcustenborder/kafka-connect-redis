@@ -1,12 +1,12 @@
 /**
  * Copyright © 2017 Jeremy Custenborder (jcustenborder@gmail.com)
- *
+ * <p>
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- *
+ * <p>
  * http://www.apache.org/licenses/LICENSE-2.0
- *
+ * <p>
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -44,6 +44,8 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.stream.Collectors;
 
+import static java.util.Objects.isNull;
+
 public class RedisSinkTask extends SinkTask {
   private static final Logger log = LoggerFactory.getLogger(RedisSinkTask.class);
 
@@ -75,7 +77,7 @@ public class RedisSinkTask extends SinkTask {
     final Set<TopicPartition> assignment = this.context.assignment();
     if (!assignment.isEmpty()) {
       final byte[][] partitionKeys = assignment.stream()
-          .map(RedisSinkTask::redisOffsetKey)
+          .map(tp -> redisOffsetKey(tp.topic(), tp.partition()))
           .map(s -> s.getBytes(Charsets.UTF_8))
           .toArray(byte[][]::new);
 
@@ -93,12 +95,12 @@ public class RedisSinkTask extends SinkTask {
       Map<TopicPartition, Long> partitionOffsets = new HashMap<>(assignment.size());
       for (SinkOffsetState state : sinkOffsetStates) {
         partitionOffsets.put(state.topicPartition(), state.offset());
-        log.info("Requesting offset {} for {}", state.offset(), state.topicPartition());
+        log.debug("Requesting offset {} for {}", state.offset(), state.topicPartition());
       }
       for (TopicPartition topicPartition : assignment) {
         if (!partitionOffsets.containsKey(topicPartition)) {
           partitionOffsets.put(topicPartition, 0L);
-          log.info("Requesting offset {} for {}", 0L, topicPartition);
+          log.debug("Requesting offset {} for {}", 0L, topicPartition);
         }
       }
       this.context.offset(partitionOffsets);
@@ -108,17 +110,28 @@ public class RedisSinkTask extends SinkTask {
   private byte[] toBytes(String source, Object input) {
     final byte[] result;
 
+    log.debug("input, source = {}, type = {}, value = {}", source, isNull(input) ? "null" : input.getClass().getName(), input);
+
     if (input instanceof String) {
       String s = (String) input;
       result = s.getBytes(this.config.charset);
     } else if (input instanceof byte[]) {
       result = (byte[]) input;
-    } else if (null == input) {
+    } else if (input instanceof HashMap) {
+      byte[] inputSerialized;
+      try {
+        inputSerialized = ObjectMapperFactory.INSTANCE.writeValueAsBytes(input);
+      } catch (final JsonProcessingException ex) {
+        log.error("Error serializing {}", source, ex);
+        inputSerialized = null;
+      }
+      result = inputSerialized;
+    } else if (isNull(input)) {
       result = null;
     } else {
       throw new DataException(
           String.format(
-              "The %s for the record must be String or Bytes. Consider using the ByteArrayConverter " +
+              "The %s for the record must be String, Bytes or schema-less Json. Consider using the ByteArrayConverter " +
                   "or StringConverter if the data is stored in Kafka in the format needed in Redis. " +
                   "Another option is to use a single message transformation to transform the data before " +
                   "it is written to Redis.",
@@ -166,18 +179,23 @@ public class RedisSinkTask extends SinkTask {
 
       SinkOperation.Type currentOperationType;
 
-      if (null == value) {
+      if (isNull(value)) {
         currentOperationType = SinkOperation.Type.DELETE;
       } else {
-        currentOperationType = SinkOperation.Type.SET;
+        switch (this.config.insertMode) {
+          case SET:
+            currentOperationType = SinkOperation.Type.SET;
+            break;
+          case APPEND:
+            currentOperationType = SinkOperation.Type.LPUSH;
+            break;
+          default:
+            currentOperationType = SinkOperation.Type.NONE;
+        }
       }
 
       if (currentOperationType != operation.type) {
-        log.debug(
-            "put() - Creating new operation. current={} last={}",
-            currentOperationType,
-            operation.type
-        );
+        log.debug("put() - Creating new operation. current={} last={}", currentOperationType, operation.type);
         operation = SinkOperation.create(currentOperationType, this.config, records.size());
         operations.add(operation);
       }
@@ -185,18 +203,14 @@ public class RedisSinkTask extends SinkTask {
       counter.increment(record.topic(), record.kafkaPartition(), record.kafkaOffset());
     }
 
-    log.debug(
-        "put() - Found {} operation(s) in {} record{s}. Executing operations...",
-        operations.size(),
-        records.size()
-    );
+    log.debug("put() - Found {} operation(s) in {} record{s}. Executing operations...", operations.size(), records.size());
 
     final List<SinkOffsetState> offsetData = counter.offsetStates();
     if (!offsetData.isEmpty()) {
       operation = SinkOperation.create(SinkOperation.Type.SET, this.config, offsetData.size());
       operations.add(operation);
       for (SinkOffsetState e : offsetData) {
-        final byte[] key = String.format("__kafka.offset.%s.%s", e.topic(), e.partition()).getBytes(Charsets.UTF_8);
+        final byte[] key = redisOffsetKey(e.topic(), e.partition()).getBytes(Charsets.UTF_8);
         final byte[] value;
         try {
           value = ObjectMapperFactory.INSTANCE.writeValueAsBytes(e);
@@ -218,8 +232,8 @@ public class RedisSinkTask extends SinkTask {
     }
   }
 
-  private static String redisOffsetKey(TopicPartition topicPartition) {
-    return String.format("__kafka.offset.%s.%s", topicPartition.topic(), topicPartition.partition());
+  private static String redisOffsetKey(final String topic, final int partition) {
+    return String.format("__kafka.offset.%s.%s", topic, partition);
   }
 
   @Override

@@ -1,12 +1,12 @@
 /**
  * Copyright © 2017 Jeremy Custenborder (jcustenborder@gmail.com)
- *
+ * <p>
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- *
+ * <p>
  * http://www.apache.org/licenses/LICENSE-2.0
- *
+ * <p>
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -17,7 +17,7 @@ package com.github.jcustenborder.kafka.connect.redis;
 
 import com.github.jcustenborder.kafka.connect.utils.config.ConfigKeyBuilder;
 import com.github.jcustenborder.kafka.connect.utils.config.ConfigUtils;
-import com.github.jcustenborder.kafka.connect.utils.config.ValidEnum;
+import com.github.jcustenborder.kafka.connect.utils.config.validators.Validators;
 import com.google.common.base.Strings;
 import com.google.common.net.HostAndPort;
 import io.lettuce.core.ClientOptions;
@@ -30,7 +30,7 @@ import org.slf4j.LoggerFactory;
 
 import java.io.File;
 import java.util.ArrayList;
-import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
@@ -47,6 +47,9 @@ class RedisConnectorConfig extends AbstractConfig {
   public static final String CLIENT_MODE_CONFIG = "redis.client.mode";
   static final String CLIENT_MODE_DOC = "The client mode to use when interacting with the Redis " +
       "cluster.";
+  public static final String INSERT_MODE_CONFIG = "redis.insert.mode";
+  public static final String INSERT_MODE_DOC = "The type of insert function to call when data is " +
+      "received from kafka";
   public static final String AUTO_RECONNECT_ENABLED_CONFIG = "redis.auto.reconnect.enabled";
   static final String AUTO_RECONNECT_ENABLED_DOC = "Flag to determine if the Redis client should " +
       "automatically reconnect.";
@@ -77,6 +80,7 @@ class RedisConnectorConfig extends AbstractConfig {
   public final static String CONNECTION_RETRY_DELAY_MS_DOC = "The amount of milliseconds to wait between redis connection attempts.";
 
   public final ClientMode clientMode;
+  public final InsertMode insertMode;
   public final List<HostAndPort> hosts;
 
   public final String password;
@@ -105,6 +109,7 @@ class RedisConnectorConfig extends AbstractConfig {
     this.password = getPassword(PASSWORD_CONFIG).value();
     this.database = getInt(DATABASE_CONFIG);
     this.clientMode = ConfigUtils.getEnum(ClientMode.class, this, CLIENT_MODE_CONFIG);
+    this.insertMode = ConfigUtils.getEnum(InsertMode.class, this, INSERT_MODE_CONFIG);
     this.autoReconnectEnabled = getBoolean(AUTO_RECONNECT_ENABLED_CONFIG);
     this.requestQueueSize = getInt(REQUEST_QUEUE_SIZE_CONFIG);
     this.keepAliveEnabled = getBoolean(SOCKET_KEEP_ALIVE_CONFIG);
@@ -128,14 +133,21 @@ class RedisConnectorConfig extends AbstractConfig {
         .define(
             ConfigKeyBuilder.of(HOSTS_CONFIG, ConfigDef.Type.LIST)
                 .documentation(HOSTS_DOC)
-                .defaultValue(Arrays.asList("localhost:6379"))
+                .defaultValue(Collections.singletonList("localhost:6379"))
                 .importance(ConfigDef.Importance.HIGH)
                 .build()
         ).define(
             ConfigKeyBuilder.of(CLIENT_MODE_CONFIG, ConfigDef.Type.STRING)
                 .documentation(CLIENT_MODE_DOC)
                 .defaultValue(ClientMode.Standalone.toString())
-                .validator(ValidEnum.of(ClientMode.class))
+                .validator(Validators.validEnum(ClientMode.class))
+                .importance(ConfigDef.Importance.MEDIUM)
+                .build()
+        ).define(
+            ConfigKeyBuilder.of(INSERT_MODE_CONFIG, ConfigDef.Type.STRING)
+                .documentation(INSERT_MODE_DOC)
+                .defaultValue(InsertMode.SET.toString())
+                .validator(Validators.validEnum(InsertMode.class))
                 .importance(ConfigDef.Importance.MEDIUM)
                 .build()
         ).define(
@@ -153,7 +165,7 @@ class RedisConnectorConfig extends AbstractConfig {
         ).define(
             ConfigKeyBuilder.of(DATABASE_CONFIG, ConfigDef.Type.INT)
                 .documentation(DATABASE_DOC)
-                .defaultValue(1)
+                .defaultValue(0)
                 .importance(ConfigDef.Importance.MEDIUM)
                 .build()
         ).define(
@@ -191,7 +203,7 @@ class RedisConnectorConfig extends AbstractConfig {
                 .documentation(SSL_PROVIDER_DOC)
                 .defaultValue(RedisSslProvider.JDK.toString())
                 .importance(ConfigDef.Importance.LOW)
-                .validator(ValidEnum.of(RedisSslProvider.class))
+                .validator(Validators.validEnum(RedisSslProvider.class))
                 .build()
         ).define(
             ConfigKeyBuilder.of(SSL_KEYSTORE_PATH_CONFIG, ConfigDef.Type.STRING)
@@ -255,6 +267,11 @@ class RedisConnectorConfig extends AbstractConfig {
   public enum ClientMode {
     Standalone,
     Cluster
+  }
+
+  public enum InsertMode {
+    SET,
+    APPEND
   }
 
   public enum RedisSslProvider {

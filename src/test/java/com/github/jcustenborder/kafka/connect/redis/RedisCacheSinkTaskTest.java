@@ -21,8 +21,6 @@ import com.google.common.collect.ImmutableMap;
 import io.lettuce.core.RedisFuture;
 import io.lettuce.core.cluster.api.async.RedisAdvancedClusterAsyncCommands;
 import io.lettuce.core.cluster.api.async.RedisClusterAsyncCommands;
-import org.apache.kafka.clients.consumer.OffsetAndMetadata;
-import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.connect.data.Schema;
 import org.apache.kafka.connect.data.SchemaAndValue;
 import org.apache.kafka.connect.errors.DataException;
@@ -43,14 +41,13 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.withSettings;
 
-public class RedisSinkTaskTest {
+public class RedisCacheSinkTaskTest {
   long offset = 1;
-
-  SinkRecord lastRecord;
+  RedisCacheSinkTask task;
+  RedisClusterAsyncCommands<byte[], byte[]> asyncCommands;
 
   SinkRecord record(String k, String v) {
     final byte[] key = k.getBytes(Charsets.UTF_8);
@@ -66,7 +63,7 @@ public class RedisSinkTaskTest {
       valueSchema = Schema.BYTES_SCHEMA;
     }
 
-    return lastRecord = new SinkRecord(
+    return new SinkRecord(
         "topic",
         1,
         keySchema,
@@ -78,13 +75,10 @@ public class RedisSinkTaskTest {
 
   }
 
-  RedisSinkTask task;
-  RedisClusterAsyncCommands<byte[], byte[]> asyncCommands;
-
   @BeforeEach
   public void before() throws InterruptedException {
-    this.task = new RedisSinkTask();
-    this.task.session = mock(RedisSession.class);
+    this.task = new RedisCacheSinkTask();
+    this.task.session = mock(RedisClusterSession.class);
     this.asyncCommands = mock(RedisAdvancedClusterAsyncCommands.class, withSettings().verboseLogging());
     when(task.session.asyncCommands()).thenReturn(asyncCommands);
 
@@ -94,7 +88,7 @@ public class RedisSinkTaskTest {
     when(deleteFuture.await(anyLong(), any(TimeUnit.class))).thenReturn(true);
     when(asyncCommands.mset(anyMap())).thenReturn(setFuture);
     when(asyncCommands.del(any())).thenReturn(deleteFuture);
-    task.config = new RedisSinkConnectorConfig(
+    task.config = new RedisCacheSinkConnectorConfig(
         ImmutableMap.of()
     );
   }
@@ -151,9 +145,7 @@ public class RedisSinkTaskTest {
     InOrder inOrder = Mockito.inOrder(asyncCommands);
     inOrder.verify(asyncCommands).mset(anyMap());
     inOrder.verify(asyncCommands).del(any(byte[].class));
-
-    task.flush(ImmutableMap.of(new TopicPartition(lastRecord.topic(), lastRecord.kafkaPartition()), new OffsetAndMetadata(lastRecord.kafkaOffset())));
-    inOrder.verify(asyncCommands, times(2)).mset(anyMap());
+    inOrder.verify(asyncCommands).mset(anyMap());
   }
 
 }

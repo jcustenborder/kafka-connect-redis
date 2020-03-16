@@ -16,13 +16,11 @@
 package com.github.jcustenborder.kafka.connect.redis;
 
 import io.lettuce.core.AbstractRedisClient;
-import io.lettuce.core.api.StatefulConnection;
-import io.lettuce.core.cluster.api.async.RedisClusterAsyncCommands;
 
-public interface RedisSession extends AutoCloseable {
+public interface RedisSession<K, V, CONNECTION, COMMANDS> extends AutoCloseable {
   AbstractRedisClient client();
 
-  StatefulConnection connection();
+  CONNECTION connection();
 
-  RedisClusterAsyncCommands<byte[], byte[]> asyncCommands();
+  COMMANDS asyncCommands();
 }

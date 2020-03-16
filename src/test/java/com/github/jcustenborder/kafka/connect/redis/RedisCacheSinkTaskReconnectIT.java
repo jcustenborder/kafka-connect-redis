@@ -58,15 +58,15 @@ import static org.mockito.Mockito.when;
     dockerComposePath = "src/test/resources/docker-compose.yml",
     cleanupMode = CleanupMode.AfterEach
 )
-public class RedisSinkTaskReconnectIT {
-  private static final Logger log = LoggerFactory.getLogger(RedisSinkTaskReconnectIT.class);
+public class RedisCacheSinkTaskReconnectIT {
+  private static final Logger log = LoggerFactory.getLogger(RedisCacheSinkTaskReconnectIT.class);
 
 
-  RedisSinkTask task;
+  RedisCacheSinkTask task;
 
   @BeforeEach
   public void before() {
-    this.task = new RedisSinkTask();
+    this.task = new RedisCacheSinkTask();
   }
 
   @Test
@@ -82,7 +82,7 @@ public class RedisSinkTaskReconnectIT {
 
     ExecutorService service = Executors.newSingleThreadExecutor();
     Future<?> future = service.submit(() -> task.start(
-          ImmutableMap.of(RedisSinkConnectorConfig.HOSTS_CONFIG, String.format("%s:%s", address.getHostString(), address.getPort())
+        ImmutableMap.of(RedisCacheSinkConnectorConfig.HOSTS_CONFIG, String.format("%s:%s", address.getHostString(), address.getPort())
         )
     ));
     container.start();
@@ -90,7 +90,7 @@ public class RedisSinkTaskReconnectIT {
     future.get();
   }
 
-  void sendAndVerifyRecords(RedisSinkTask task, String topic, int keyIndex) throws ExecutionException, InterruptedException {
+  void sendAndVerifyRecords(BaseRedisSinkTask task, String topic, int keyIndex) throws ExecutionException, InterruptedException {
     final int count = 50;
     final Map<String, String> expected = new LinkedHashMap<>(count);
     final List<SinkRecord> records = new ArrayList<>(count);
@@ -134,7 +134,7 @@ public class RedisSinkTaskReconnectIT {
     when(context.assignment()).thenReturn(ImmutableSet.of());
     this.task.initialize(context);
     this.task.start(
-        ImmutableMap.of(RedisSinkConnectorConfig.HOSTS_CONFIG, String.format("%s:%s", address.getHostString(), address.getPort()))
+        ImmutableMap.of(RedisCacheSinkConnectorConfig.HOSTS_CONFIG, String.format("%s:%s", address.getHostString(), address.getPort()))
     );
 
     sendAndVerifyRecords(task, topic, 0);

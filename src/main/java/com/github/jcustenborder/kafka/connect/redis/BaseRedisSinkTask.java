@@ -15,10 +15,9 @@
  */
 package com.github.jcustenborder.kafka.connect.redis;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.github.jcustenborder.kafka.connect.utils.VersionUtil;
+import com.github.jcustenborder.kafka.connect.utils.data.SinkOffsetState;
 import com.github.jcustenborder.kafka.connect.utils.jackson.ObjectMapperFactory;
-import com.google.common.base.Charsets;
 import io.lettuce.core.KeyValue;
 import io.lettuce.core.RedisFuture;
 import org.apache.kafka.clients.consumer.OffsetAndMetadata;
@@ -31,9 +30,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -43,17 +42,11 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.stream.Collectors;
 
-public class RedisSinkTask extends SinkTask {
-  private static final Logger log = LoggerFactory.getLogger(RedisSinkTask.class);
-
-  @Override
-  public String version() {
-    return VersionUtil.version(this.getClass());
-  }
-
-  RedisSinkConnectorConfig config;
+public abstract class BaseRedisSinkTask<CONFIG extends RedisConnectorConfig> extends SinkTask {
+  private static final Logger log = LoggerFactory.getLogger(BaseRedisSinkTask.class);
+  protected CONFIG config;
+  protected RedisClusterSession<byte[], byte[]> session;
   RedisSessionFactory sessionFactory = new RedisSessionFactoryImpl();
-  RedisSession session;
 
   static SinkOffsetState state(KeyValue<byte[], byte[]> input) {
     if (!input.hasValue()) {
@@ -66,16 +59,36 @@ public class RedisSinkTask extends SinkTask {
     }
   }
 
+  static String formatLocation(SinkRecord record) {
+    return String.format(
+        "topic = %s partition = %s offset = %s",
+        record.topic(),
+        record.kafkaPartition(),
+        record.kafkaOffset()
+    );
+  }
+
+  private static String redisOffsetKey(TopicPartition topicPartition) {
+    return String.format("__kafka.offset.%s.%s", topicPartition.topic(), topicPartition.partition());
+  }
+
+  @Override
+  public String version() {
+    return VersionUtil.version(this.getClass());
+  }
+
+  protected abstract CONFIG config(Map<String, String> settings);
+
   @Override
   public void start(Map<String, String> settings) {
-    this.config = new RedisSinkConnectorConfig(settings);
-    this.session = this.sessionFactory.create(this.config);
+    this.config = config(settings);
+    this.session = this.sessionFactory.createClusterSession(this.config);
 
     final Set<TopicPartition> assignment = this.context.assignment();
     if (!assignment.isEmpty()) {
       final byte[][] partitionKeys = assignment.stream()
-          .map(RedisSinkTask::redisOffsetKey)
-          .map(s -> s.getBytes(Charsets.UTF_8))
+          .map(BaseRedisSinkTask::redisOffsetKey)
+          .map(s -> s.getBytes(this.config.charset))
           .toArray(byte[][]::new);
 
       final RedisFuture<List<KeyValue<byte[], byte[]>>> partitionKeyFuture = this.session.asyncCommands().mget(partitionKeys);
@@ -83,7 +96,7 @@ public class RedisSinkTask extends SinkTask {
       try {
         final List<KeyValue<byte[], byte[]>> partitionKey = partitionKeyFuture.get(this.config.operationTimeoutMs, TimeUnit.MILLISECONDS);
         sinkOffsetStates = partitionKey.stream()
-            .map(RedisSinkTask::state)
+            .map(BaseRedisSinkTask::state)
             .filter(Objects::nonNull)
             .collect(Collectors.toList());
       } catch (InterruptedException | ExecutionException | TimeoutException e) {
@@ -104,7 +117,7 @@ public class RedisSinkTask extends SinkTask {
     }
   }
 
-  private byte[] toBytes(String source, Object input) {
+  protected byte[] toBytes(String source, Object input) {
     final byte[] result;
 
     if (input instanceof String) {
@@ -129,110 +142,37 @@ public class RedisSinkTask extends SinkTask {
     return result;
   }
 
-  static String formatLocation(SinkRecord record) {
-    return String.format(
-        "topic = %s partition = %s offset = %s",
-        record.topic(),
-        record.kafkaPartition(),
-        record.kafkaOffset()
-    );
-  }
+  protected abstract void operations(SinkOperations sinkOperations, Collection<SinkRecord> records);
 
   @Override
   public void put(Collection<SinkRecord> records) {
     log.debug("put() - Processing {} record(s)", records.size());
-    List<SinkOperation> operations = new ArrayList<>(records.size());
-
-    SinkOperation operation = SinkOperation.NONE;
-
-    for (SinkRecord record : records) {
-      log.trace("put() - Processing record " + formatLocation(record));
-      if (null == record.key()) {
-        throw new DataException(
-            "The key for the record cannot be null. " + formatLocation(record)
-        );
-      }
-      final byte[] key = toBytes("key", record.key());
-      if (null == key || key.length == 0) {
-        throw new DataException(
-            "The key cannot be an empty byte array. " + formatLocation(record)
-        );
-      }
-
-      final byte[] value = toBytes("value", record.value());
-
-      SinkOperation.Type currentOperationType;
-
-      if (null == value) {
-        currentOperationType = SinkOperation.Type.DELETE;
-      } else {
-        currentOperationType = SinkOperation.Type.SET;
-      }
-
-      if (currentOperationType != operation.type) {
-        log.debug(
-            "put() - Creating new operation. current={} last={}",
-            currentOperationType,
-            operation.type
-        );
-        operation = SinkOperation.create(currentOperationType, this.config, records.size());
-        operations.add(operation);
-      }
-      operation.add(key, value);
-    }
-
-    log.debug(
-        "put() - Found {} operation(s) in {} record{s}. Executing operations...",
-        operations.size(),
-        records.size()
-    );
-
-    for (SinkOperation op : operations) {
-      log.debug("put() - Executing {} operation with {} values", op.type, op.size());
-      try {
-        op.execute(this.session.asyncCommands());
-      } catch (InterruptedException e) {
-        log.warn("Exception thrown while executing operation", e);
-        throw new RetriableException(e);
-      }
-    }
+    SinkOperations sinkOperations = new SinkOperations(this.config);
+    operations(sinkOperations, records);
+    sinkOperations.execute(this.session.asyncCommands());
   }
 
   @Override
   public void flush(Map<TopicPartition, OffsetAndMetadata> currentOffsets) {
-    SinkOperation operation = SinkOperation.create(SinkOperation.Type.SET, this.config, currentOffsets.size());
+    Map<String, Map<String, String>> partitions = new LinkedHashMap<>();
+    currentOffsets.forEach((topicPartition, offsetMetadata) -> {
+      String topicKey = String.format("__kafka.offsets.%s", topicPartition.topic());
+      Map<String, String> offsets = partitions.computeIfAbsent(topicKey, s -> new LinkedHashMap<>());
+      offsets.put(
+          Integer.toString(topicPartition.partition()),
+          Long.toString(offsetMetadata.offset())
+      );
+    });
 
-    List<SinkOffsetState> states = currentOffsets
-        .entrySet().stream()
-        .map(e -> ImmutableSinkOffsetState.builder()
-            .topic(e.getKey().topic())
-            .partition(e.getKey().partition())
-            .offset(e.getValue().offset())
-            .build()
-        ).collect(Collectors.toList());
+    partitions.forEach((topicKey, offsets) -> {
+      final byte[] key = topicKey.getBytes(this.config.charset);
+      offsets.forEach((partition, offset) -> {
+        byte[] partitionKey = partition.getBytes(this.config.charset);
+        byte[] offsetBytes = offset.getBytes();
+        RedisFuture<Boolean> future = this.session.asyncCommands().hset(key, partitionKey, offsetBytes);
 
-    for (SinkOffsetState e : states) {
-      final byte[] key = String.format("__kafka.offset.%s.%s", e.topic(), e.partition()).getBytes(Charsets.UTF_8);
-      final byte[] value;
-      try {
-        value = ObjectMapperFactory.INSTANCE.writeValueAsBytes(e);
-      } catch (JsonProcessingException e1) {
-        throw new DataException(e1);
-      }
-      operation.add(key, value);
-      log.trace("put() - Setting offset: {}", e);
-    }
-
-    try {
-      operation.execute(this.session.asyncCommands());
-    } catch (InterruptedException e) {
-      log.warn("Exception thrown while executing operation", e);
-      throw new RetriableException(e);
-    }
-  }
-
-  private static String redisOffsetKey(TopicPartition topicPartition) {
-    return String.format("__kafka.offset.%s.%s", topicPartition.topic(), topicPartition.partition());
+      });
+    });
   }
 
   @Override

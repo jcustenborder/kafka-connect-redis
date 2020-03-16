@@ -13,14 +13,16 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-@Introduction("The Redis plugin is a collection of connectors that are used to interact with a " +
-    "Redis cluster.")
-@Title("Redis")
-@PluginOwner("jcustenborder")
-@PluginName("kafka-connect-redis")
 package com.github.jcustenborder.kafka.connect.redis;
 
-import com.github.jcustenborder.kafka.connect.utils.config.Introduction;
-import com.github.jcustenborder.kafka.connect.utils.config.PluginName;
-import com.github.jcustenborder.kafka.connect.utils.config.PluginOwner;
-import com.github.jcustenborder.kafka.connect.utils.config.Title;
+import com.google.common.base.Charsets;
+import io.lettuce.core.KeyValue;
+
+public class TestUtils {
+  public static KeyValue<String, String> toString(KeyValue<byte[], byte[]> input) {
+    return KeyValue.fromNullable(
+        new String(input.getKey(), Charsets.UTF_8),
+        new String(input.getValue(), Charsets.UTF_8)
+    );
+  }
+}

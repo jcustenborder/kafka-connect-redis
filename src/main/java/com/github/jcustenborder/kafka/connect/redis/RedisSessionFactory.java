@@ -15,6 +15,14 @@
  */
 package com.github.jcustenborder.kafka.connect.redis;
 
+import io.lettuce.core.codec.RedisCodec;
+
 interface RedisSessionFactory {
-  RedisSession create(RedisConnectorConfig config);
+  RedisClusterSession<byte[], byte[]> createClusterSession(RedisConnectorConfig config);
+
+  <K, V> RedisClusterSession<K, V> createClusterSession(RedisConnectorConfig config, RedisCodec<K, V> codec);
+
+  RedisPubSubSession<byte[], byte[]> createPubSubSession(RedisConnectorConfig config);
+
+  <K, V> RedisPubSubSession<K, V> createPubSubSession(RedisConnectorConfig config, RedisCodec<K, V> codec);
 }

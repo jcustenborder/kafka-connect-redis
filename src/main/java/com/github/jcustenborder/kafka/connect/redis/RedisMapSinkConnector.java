@@ -30,19 +30,15 @@ import org.slf4j.LoggerFactory;
 import java.util.List;
 import java.util.Map;
 
-@Title("Redis Sink Connector")
-@Description("The Redis Sink Connector is used to write data from Kafka to a Redis cache.")
-@DocumentationImportant("This connector expects records from Kafka to have a key and value that are " +
-    "stored as bytes or a string. If your data is already in Kafka in the format that you want in " +
-    "Redis consider using the ByteArrayConverter or the StringConverter for this connector. Keep in " +
-    "this does not need to be configured in the worker properties and can be configured at the " +
-    "connector level. If your data is not sitting in Kafka in the format you wish to persist in Redis " +
-    "consider using a Single Message Transformation to convert the data to a byte or string representation " +
-    "before it is written to Redis.")
+@Title("Redis Map Sink Connector")
+@Description("The Redis Geo Sink Connector is used to write data from Kafka to a Redis cache.")
+@DocumentationImportant("This connector expects data to be written in the following format. " +
+    "Key: `string or bytes`, " +
+    "Value: `{\"latitude\":\"30.2672\", \"longitude\":\"97.7431\"}` ")
 @DocumentationNote("This connector supports deletes. If the record stored in Kafka has a null value, " +
     "this connector will send a delete with the corresponding key to Redis.")
-public class RedisSinkConnector extends SinkConnector {
-  private static final Logger log = LoggerFactory.getLogger(RedisSinkConnector.class);
+public class RedisMapSinkConnector extends SinkConnector {
+  private static final Logger log = LoggerFactory.getLogger(RedisMapSinkConnector.class);
   Map<String, String> settings;
 
   @Override
@@ -52,15 +48,13 @@ public class RedisSinkConnector extends SinkConnector {
 
   @Override
   public void start(Map<String, String> settings) {
-    log.warn("This connector is deprecated and will be removed in a future version. Please move to " +
-        "{}", RedisCacheSinkConnector.class.getName());
     new RedisCacheSinkConnectorConfig(settings);
     this.settings = settings;
   }
 
   @Override
   public Class<? extends Task> taskClass() {
-    return RedisCacheSinkTask.class;
+    return RedisMapSinkTask.class;
   }
 
   @Override

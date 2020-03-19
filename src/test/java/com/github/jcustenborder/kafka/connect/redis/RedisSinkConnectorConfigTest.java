@@ -130,7 +130,7 @@ public class RedisSinkConnectorConfigTest {
     @Test
     public void testDefaultDatabaseConfig() {
         RedisSinkConnectorConfig config = new RedisSinkConnectorConfig(props);
-        assertEquals(config.database, 1);
+        assertEquals(config.database, 0);
     }
 
     @Test

@@ -15,16 +15,14 @@
  */
 package com.github.jcustenborder.kafka.connect.redis;
 
-import org.apache.kafka.common.config.ConfigDef;
-
-import java.util.Map;
-
-class RedisCacheSinkConnectorConfig extends RedisConnectorConfig {
-  public RedisCacheSinkConnectorConfig(Map<?, ?> originals) {
-    super(config(), originals);
+public class RedisPubSubSourceConnectorTest extends BaseConnectorTest<RedisPubSubSourceConnector, RedisPubSubSourceTask> {
+  @Override
+  protected Class<RedisPubSubSourceTask> expectedTaskClass() {
+    return RedisPubSubSourceTask.class;
   }
 
-  public static ConfigDef config() {
-    return RedisConnectorConfig.config();
+  @Override
+  protected RedisPubSubSourceConnector newConnector() {
+    return new RedisPubSubSourceConnector();
   }
 }

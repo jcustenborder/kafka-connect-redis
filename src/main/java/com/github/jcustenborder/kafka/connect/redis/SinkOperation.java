@@ -155,21 +155,6 @@ abstract class SinkOperation {
       this.operations = new LinkedHashMap<>();
     }
 
-    static class FlatMapper implements Function<Map.Entry<byte[], Map<byte[], byte[]>>, Stream<RedisFuture<Boolean>>> {
-      final RedisClusterAsyncCommands<byte[], byte[]> asyncCommands;
-
-      FlatMapper(RedisClusterAsyncCommands<byte[], byte[]> asyncCommands) {
-        this.asyncCommands = asyncCommands;
-      }
-
-      @Override
-      public Stream<RedisFuture<Boolean>> apply(Map.Entry<byte[], Map<byte[], byte[]>> mapEntry) {
-        return mapEntry.getValue().entrySet()
-            .stream()
-            .map(e -> asyncCommands.hset(mapEntry.getKey(), e.getKey(), e.getValue()));
-      }
-    }
-
     @Override
     public void execute(RedisClusterAsyncCommands<byte[], byte[]> asyncCommands) throws InterruptedException {
       RedisFuture<Boolean>[] futures = this.operations.entrySet().stream()
@@ -186,6 +171,21 @@ abstract class SinkOperation {
     @Override
     public int size() {
       return this.operations.size();
+    }
+
+    static class FlatMapper implements Function<Map.Entry<byte[], Map<byte[], byte[]>>, Stream<RedisFuture<Boolean>>> {
+      final RedisClusterAsyncCommands<byte[], byte[]> asyncCommands;
+
+      FlatMapper(RedisClusterAsyncCommands<byte[], byte[]> asyncCommands) {
+        this.asyncCommands = asyncCommands;
+      }
+
+      @Override
+      public Stream<RedisFuture<Boolean>> apply(Map.Entry<byte[], Map<byte[], byte[]>> mapEntry) {
+        return mapEntry.getValue().entrySet()
+            .stream()
+            .map(e -> asyncCommands.hset(mapEntry.getKey(), e.getKey(), e.getValue()));
+      }
     }
   }
 

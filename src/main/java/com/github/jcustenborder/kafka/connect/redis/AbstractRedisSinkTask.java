@@ -42,8 +42,8 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.stream.Collectors;
 
-public abstract class BaseRedisSinkTask<CONFIG extends RedisConnectorConfig> extends SinkTask {
-  private static final Logger log = LoggerFactory.getLogger(BaseRedisSinkTask.class);
+public abstract class AbstractRedisSinkTask<CONFIG extends RedisConnectorConfig> extends SinkTask {
+  private static final Logger log = LoggerFactory.getLogger(AbstractRedisSinkTask.class);
   protected CONFIG config;
   protected RedisClusterSession<byte[], byte[]> session;
   RedisSessionFactory sessionFactory = new RedisSessionFactoryImpl();
@@ -87,7 +87,7 @@ public abstract class BaseRedisSinkTask<CONFIG extends RedisConnectorConfig> ext
     final Set<TopicPartition> assignment = this.context.assignment();
     if (!assignment.isEmpty()) {
       final byte[][] partitionKeys = assignment.stream()
-          .map(BaseRedisSinkTask::redisOffsetKey)
+          .map(AbstractRedisSinkTask::redisOffsetKey)
           .map(s -> s.getBytes(this.config.charset))
           .toArray(byte[][]::new);
 
@@ -96,7 +96,7 @@ public abstract class BaseRedisSinkTask<CONFIG extends RedisConnectorConfig> ext
       try {
         final List<KeyValue<byte[], byte[]>> partitionKey = partitionKeyFuture.get(this.config.operationTimeoutMs, TimeUnit.MILLISECONDS);
         sinkOffsetStates = partitionKey.stream()
-            .map(BaseRedisSinkTask::state)
+            .map(AbstractRedisSinkTask::state)
             .filter(Objects::nonNull)
             .collect(Collectors.toList());
       } catch (InterruptedException | ExecutionException | TimeoutException e) {

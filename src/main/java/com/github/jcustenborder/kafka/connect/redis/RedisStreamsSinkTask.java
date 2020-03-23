@@ -25,12 +25,12 @@ import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
-public class RedisStreamsSinkTask extends BaseRedisSinkTask<RedisCacheSinkConnectorConfig> {
+public class RedisStreamsSinkTask extends AbstractRedisSinkTask<RedisSinkConnectorConfig> {
   private static final Logger log = LoggerFactory.getLogger(RedisStreamsSinkTask.class);
 
   @Override
-  protected RedisCacheSinkConnectorConfig config(Map<String, String> settings) {
-    return new RedisCacheSinkConnectorConfig(settings);
+  protected RedisSinkConnectorConfig config(Map<String, String> settings) {
+    return new RedisSinkConnectorConfig(settings);
   }
 
   @Override

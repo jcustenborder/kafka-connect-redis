@@ -24,30 +24,26 @@ import org.apache.kafka.connect.connector.Task;
 
 import java.util.Map;
 
-@Title("Redis Cache Sink Connector")
-@Description("The Redis Cache Sink Connector is used to write data from Kafka to a Redis cache.")
-@DocumentationImportant("This connector expects records from Kafka to have a key and value that are " +
-    "stored as bytes or a string. If your data is already in Kafka in the format that you want in " +
-    "Redis consider using the ByteArrayConverter or the StringConverter for this connector. Keep in " +
-    "this does not need to be configured in the worker properties and can be configured at the " +
-    "connector level. If your data is not sitting in Kafka in the format you wish to persist in Redis " +
-    "consider using a Single Message Transformation to convert the data to a byte or string representation " +
-    "before it is written to Redis.")
+@Title("Redis Pub Sub Source Connector")
+@Description("The Redis Pub Sub Source Connector is used to write data from Kafka to a Redis cache.")
+@DocumentationImportant("This connector expects data to be written in the following format. " +
+    "Key: `string or bytes`, " +
+    "Value: `{\"latitude\":\"30.2672\", \"longitude\":\"97.7431\"}` ")
 @DocumentationNote("This connector supports deletes. If the record stored in Kafka has a null value, " +
     "this connector will send a delete with the corresponding key to Redis.")
-public class RedisCacheSinkConnector extends AbstractRedisSinkConnector<RedisSinkConnectorConfig> {
-  @Override
-  protected RedisSinkConnectorConfig config(Map<String, String> settings) {
-    return new RedisSinkConnectorConfig(settings);
-  }
-
+public class RedisPubSubSourceConnector extends AbstractRedisSourceConnector<RedisPubSubSourceConnectorConfig> {
   @Override
   public Class<? extends Task> taskClass() {
-    return RedisCacheSinkTask.class;
+    return RedisPubSubSourceTask.class;
   }
 
   @Override
   public ConfigDef config() {
     return RedisSinkConnectorConfig.config();
+  }
+
+  @Override
+  protected RedisPubSubSourceConnectorConfig config(Map<String, String> settings) {
+    return new RedisPubSubSourceConnectorConfig(settings);
   }
 }

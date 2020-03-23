@@ -15,31 +15,16 @@
  */
 package com.github.jcustenborder.kafka.connect.redis;
 
-import com.github.jcustenborder.kafka.connect.utils.config.ConfigKeyBuilder;
-import com.github.jcustenborder.kafka.connect.utils.config.ConfigUtils;
 import org.apache.kafka.common.config.ConfigDef;
 
 import java.util.Map;
-import java.util.Set;
 
-class RedisPubSubSourceConnectorConfig extends RedisSourceConnectorConfig {
-
-  public static final String REDIS_CHANNEL_CONF = "redis.channel";
-  static final String REDIS_CHANNEL_DOC = "redis.channel";
-  final Set<String> channels;
-
-  public RedisPubSubSourceConnectorConfig(Map<?, ?> originals) {
+class RedisSinkConnectorConfig extends RedisConnectorConfig {
+  public RedisSinkConnectorConfig(Map<?, ?> originals) {
     super(config(), originals);
-    this.channels = ConfigUtils.getSet(this, REDIS_CHANNEL_CONF);
   }
 
   public static ConfigDef config() {
-    return RedisConnectorConfig.config()
-        .define(
-            ConfigKeyBuilder.of(REDIS_CHANNEL_CONF, ConfigDef.Type.LIST)
-                .documentation(REDIS_CHANNEL_DOC)
-                .importance(ConfigDef.Importance.HIGH)
-                .build()
-        );
+    return RedisConnectorConfig.config();
   }
 }

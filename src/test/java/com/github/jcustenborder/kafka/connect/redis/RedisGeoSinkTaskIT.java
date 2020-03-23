@@ -70,7 +70,7 @@ public class RedisGeoSinkTaskIT {
     when(context.assignment()).thenReturn(ImmutableSet.of());
     this.task.initialize(context);
     this.task.start(
-        ImmutableMap.of(RedisCacheSinkConnectorConfig.HOSTS_CONFIG, String.format("%s:%s", address.getHostString(), address.getPort()))
+        ImmutableMap.of(RedisSinkConnectorConfig.HOSTS_CONFIG, String.format("%s:%s", address.getHostString(), address.getPort()))
     );
   }
 
@@ -82,7 +82,7 @@ public class RedisGeoSinkTaskIT {
     when(context.assignment()).thenReturn(ImmutableSet.of(new TopicPartition(topic, 1)));
     this.task.initialize(context);
     this.task.start(
-        ImmutableMap.of(RedisCacheSinkConnectorConfig.HOSTS_CONFIG, String.format("%s:%s", address.getHostString(), address.getPort()))
+        ImmutableMap.of(RedisSinkConnectorConfig.HOSTS_CONFIG, String.format("%s:%s", address.getHostString(), address.getPort()))
     );
 
     this.task.put(ImmutableList.of());
@@ -97,7 +97,7 @@ public class RedisGeoSinkTaskIT {
     when(context.assignment()).thenReturn(ImmutableSet.of(new TopicPartition(topic, 1)));
     this.task.initialize(context);
     this.task.start(
-        ImmutableMap.of(RedisCacheSinkConnectorConfig.HOSTS_CONFIG, String.format("%s:%s", address.getHostString(), address.getPort()))
+        ImmutableMap.of(RedisSinkConnectorConfig.HOSTS_CONFIG, String.format("%s:%s", address.getHostString(), address.getPort()))
     );
 
     AtomicLong offset = new AtomicLong(1L);
@@ -148,7 +148,7 @@ public class RedisGeoSinkTaskIT {
     when(context.assignment()).thenReturn(ImmutableSet.of(new TopicPartition(topic, 1)));
     this.task.initialize(context);
     this.task.start(
-        ImmutableMap.of(RedisCacheSinkConnectorConfig.HOSTS_CONFIG, String.format("%s:%s", address.getHostString(), address.getPort()))
+        ImmutableMap.of(RedisSinkConnectorConfig.HOSTS_CONFIG, String.format("%s:%s", address.getHostString(), address.getPort()))
     );
 
     AtomicLong offset = new AtomicLong(1L);

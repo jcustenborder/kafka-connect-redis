@@ -88,7 +88,7 @@ public class RedisCacheSinkTaskTest {
     when(deleteFuture.await(anyLong(), any(TimeUnit.class))).thenReturn(true);
     when(asyncCommands.mset(anyMap())).thenReturn(setFuture);
     when(asyncCommands.del(any())).thenReturn(deleteFuture);
-    task.config = new RedisCacheSinkConnectorConfig(
+    task.config = new RedisSinkConnectorConfig(
         ImmutableMap.of()
     );
   }

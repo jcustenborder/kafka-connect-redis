@@ -15,41 +15,24 @@
  */
 package com.github.jcustenborder.kafka.connect.redis;
 
-import com.github.jcustenborder.kafka.connect.utils.VersionUtil;
-import com.github.jcustenborder.kafka.connect.utils.data.SourceRecordDeque;
-import com.github.jcustenborder.kafka.connect.utils.data.SourceRecordDequeBuilder;
 import io.lettuce.core.cluster.models.partitions.RedisClusterNode;
 import io.lettuce.core.cluster.pubsub.RedisClusterPubSubListener;
 import io.lettuce.core.pubsub.RedisPubSubListener;
 import org.apache.kafka.connect.data.Schema;
 import org.apache.kafka.connect.source.SourceRecord;
-import org.apache.kafka.connect.source.SourceTask;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.List;
 import java.util.Map;
 
-public class RedisPubSubSourceTask extends SourceTask
+public class RedisPubSubSourceTask extends AbstractRedisPubSubSourceTask<RedisPubSubSourceConnectorConfig>
     implements RedisPubSubListener<byte[], byte[]>, RedisClusterPubSubListener<byte[], byte[]> {
-  private static final Logger log = LoggerFactory.getLogger(BaseRedisSinkTask.class);
-  protected RedisPubSubSourceConnectorConfig config;
-  protected RedisPubSubSession<byte[], byte[]> session;
-  RedisSessionFactory sessionFactory = new RedisSessionFactoryImpl();
-  SourceRecordDeque records;
-
-  @Override
-  public String version() {
-    return VersionUtil.version(this.getClass());
-  }
+  private static final Logger log = LoggerFactory.getLogger(AbstractRedisSinkTask.class);
 
   @Override
   public void start(Map<String, String> settings) {
-    this.config = new RedisPubSubSourceConnectorConfig(settings);
-    this.session = this.sessionFactory.createPubSubSession(this.config);
+    super.start(settings);
     this.session.connection().addListener(this);
-    this.records = SourceRecordDequeBuilder.of()
-        .build();
     log.info("start() - Subscribing to {}", this.config.channels);
     byte[][] subscriptions = this.config.channels.stream()
         .map(s -> s.getBytes(this.config.charset))
@@ -57,19 +40,9 @@ public class RedisPubSubSourceTask extends SourceTask
     this.session.asyncCommands().subscribe(subscriptions);
   }
 
-
   @Override
-  public List<SourceRecord> poll() throws InterruptedException {
-    return records.getBatch();
-  }
-
-  @Override
-  public void stop() {
-    try {
-      this.session.close();
-    } catch (Exception e) {
-      log.error("Exception thrown while closing.", e);
-    }
+  protected RedisPubSubSourceConnectorConfig config(Map<String, String> settings) {
+    return new RedisPubSubSourceConnectorConfig(settings);
   }
 
   void addRecord(byte[] channel, byte[] message) {

@@ -82,7 +82,7 @@ public class RedisCacheSinkTaskReconnectIT {
 
     ExecutorService service = Executors.newSingleThreadExecutor();
     Future<?> future = service.submit(() -> task.start(
-        ImmutableMap.of(RedisCacheSinkConnectorConfig.HOSTS_CONFIG, String.format("%s:%s", address.getHostString(), address.getPort())
+        ImmutableMap.of(RedisSinkConnectorConfig.HOSTS_CONFIG, String.format("%s:%s", address.getHostString(), address.getPort())
         )
     ));
     container.start();
@@ -90,7 +90,7 @@ public class RedisCacheSinkTaskReconnectIT {
     future.get();
   }
 
-  void sendAndVerifyRecords(BaseRedisSinkTask task, String topic, int keyIndex) throws ExecutionException, InterruptedException {
+  void sendAndVerifyRecords(AbstractRedisSinkTask task, String topic, int keyIndex) throws ExecutionException, InterruptedException {
     final int count = 50;
     final Map<String, String> expected = new LinkedHashMap<>(count);
     final List<SinkRecord> records = new ArrayList<>(count);
@@ -134,7 +134,7 @@ public class RedisCacheSinkTaskReconnectIT {
     when(context.assignment()).thenReturn(ImmutableSet.of());
     this.task.initialize(context);
     this.task.start(
-        ImmutableMap.of(RedisCacheSinkConnectorConfig.HOSTS_CONFIG, String.format("%s:%s", address.getHostString(), address.getPort()))
+        ImmutableMap.of(RedisSinkConnectorConfig.HOSTS_CONFIG, String.format("%s:%s", address.getHostString(), address.getPort()))
     );
 
     sendAndVerifyRecords(task, topic, 0);

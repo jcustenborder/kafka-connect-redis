@@ -24,12 +24,12 @@ import org.slf4j.LoggerFactory;
 import java.util.Collection;
 import java.util.Map;
 
-public class RedisGeoSinkTask extends BaseRedisSinkTask<RedisCacheSinkConnectorConfig> {
+public class RedisGeoSinkTask extends AbstractRedisSinkTask<RedisSinkConnectorConfig> {
   private static final Logger log = LoggerFactory.getLogger(RedisGeoSinkTask.class);
 
   @Override
-  protected RedisCacheSinkConnectorConfig config(Map<String, String> settings) {
-    return new RedisCacheSinkConnectorConfig(settings);
+  protected RedisSinkConnectorConfig config(Map<String, String> settings) {
+    return new RedisSinkConnectorConfig(settings);
   }
 
   SinkOperation.GeoSetKey fromStructKey(Struct struct) {

@@ -54,7 +54,7 @@ public class RedisSinkConnector extends SinkConnector {
   public void start(Map<String, String> settings) {
     log.warn("This connector is deprecated and will be removed in a future version. Please move to " +
         "{}", RedisCacheSinkConnector.class.getName());
-    new RedisCacheSinkConnectorConfig(settings);
+    new RedisSinkConnectorConfig(settings);
     this.settings = settings;
   }
 
@@ -75,6 +75,6 @@ public class RedisSinkConnector extends SinkConnector {
 
   @Override
   public ConfigDef config() {
-    return RedisCacheSinkConnectorConfig.config();
+    return RedisSinkConnectorConfig.config();
   }
 }

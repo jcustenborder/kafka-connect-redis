@@ -27,7 +27,7 @@ import java.util.Map;
 
 public class RedisPubSubSourceTask extends AbstractRedisPubSubSourceTask<RedisPubSubSourceConnectorConfig>
     implements RedisPubSubListener<byte[], byte[]>, RedisClusterPubSubListener<byte[], byte[]> {
-  private static final Logger log = LoggerFactory.getLogger(AbstractRedisSinkTask.class);
+  private static final Logger log = LoggerFactory.getLogger(AbstractRedisCacheSinkTask.class);
 
   @Override
   public void start(Map<String, String> settings) {

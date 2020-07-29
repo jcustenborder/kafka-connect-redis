@@ -42,8 +42,8 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.stream.Collectors;
 
-public abstract class AbstractRedisSinkTask<CONFIG extends RedisConnectorConfig> extends SinkTask {
-  private static final Logger log = LoggerFactory.getLogger(AbstractRedisSinkTask.class);
+public abstract class AbstractRedisCacheSinkTask<CONFIG extends RedisConnectorConfig> extends SinkTask {
+  private static final Logger log = LoggerFactory.getLogger(AbstractRedisCacheSinkTask.class);
   protected CONFIG config;
   protected RedisClusterSession<byte[], byte[]> session;
   RedisSessionFactory sessionFactory = new RedisSessionFactoryImpl();
@@ -87,7 +87,7 @@ public abstract class AbstractRedisSinkTask<CONFIG extends RedisConnectorConfig>
     final Set<TopicPartition> assignment = this.context.assignment();
     if (!assignment.isEmpty()) {
       final byte[][] partitionKeys = assignment.stream()
-          .map(AbstractRedisSinkTask::redisOffsetKey)
+          .map(AbstractRedisCacheSinkTask::redisOffsetKey)
           .map(s -> s.getBytes(this.config.charset))
           .toArray(byte[][]::new);
 
@@ -96,7 +96,7 @@ public abstract class AbstractRedisSinkTask<CONFIG extends RedisConnectorConfig>
       try {
         final List<KeyValue<byte[], byte[]>> partitionKey = partitionKeyFuture.get(this.config.operationTimeoutMs, TimeUnit.MILLISECONDS);
         sinkOffsetStates = partitionKey.stream()
-            .map(AbstractRedisSinkTask::state)
+            .map(AbstractRedisCacheSinkTask::state)
             .filter(Objects::nonNull)
             .collect(Collectors.toList());
       } catch (InterruptedException | ExecutionException | TimeoutException e) {
@@ -170,7 +170,6 @@ public abstract class AbstractRedisSinkTask<CONFIG extends RedisConnectorConfig>
         byte[] partitionKey = partition.getBytes(this.config.charset);
         byte[] offsetBytes = offset.getBytes();
         RedisFuture<Boolean> future = this.session.asyncCommands().hset(key, partitionKey, offsetBytes);
-
       });
     });
   }

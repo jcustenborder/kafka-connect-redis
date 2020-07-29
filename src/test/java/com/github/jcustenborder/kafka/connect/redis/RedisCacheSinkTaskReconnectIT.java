@@ -90,7 +90,7 @@ public class RedisCacheSinkTaskReconnectIT {
     future.get();
   }
 
-  void sendAndVerifyRecords(AbstractRedisSinkTask task, String topic, int keyIndex) throws ExecutionException, InterruptedException {
+  void sendAndVerifyRecords(AbstractRedisCacheSinkTask task, String topic, int keyIndex) throws ExecutionException, InterruptedException {
     final int count = 50;
     final Map<String, String> expected = new LinkedHashMap<>(count);
     final List<SinkRecord> records = new ArrayList<>(count);

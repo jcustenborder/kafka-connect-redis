@@ -25,7 +25,7 @@ import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
-public class RedisStreamsSinkTask extends AbstractRedisSinkTask<RedisSinkConnectorConfig> {
+public class RedisStreamsSinkTask extends AbstractRedisCacheSinkTask<RedisSinkConnectorConfig> {
   private static final Logger log = LoggerFactory.getLogger(RedisStreamsSinkTask.class);
 
   @Override

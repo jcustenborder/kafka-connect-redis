@@ -23,7 +23,7 @@ import org.slf4j.LoggerFactory;
 import java.util.Collection;
 import java.util.Map;
 
-public class RedisCacheSinkTask extends AbstractRedisSinkTask<RedisSinkConnectorConfig> {
+public class RedisCacheSinkTask extends AbstractRedisCacheSinkTask<RedisSinkConnectorConfig> {
   private static final Logger log = LoggerFactory.getLogger(RedisCacheSinkTask.class);
 
   @Override

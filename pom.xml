@@ -62,12 +62,6 @@
             <groupId>io.lettuce</groupId>
             <artifactId>lettuce-core</artifactId>
             <version>5.2.1.RELEASE</version>
-            <exclusions>
-                <exclusion>
-                    <groupId>io.netty</groupId>
-                    <artifactId>*</artifactId>
-                </exclusion>
-            </exclusions>
         </dependency>
     </dependencies>
     <build>
@@ -77,6 +71,12 @@
                 <artifactId>maven-javadoc-plugin</artifactId>
                 <configuration>
                     <source>8</source>
+                </configuration>
+            </plugin>
+            <plugin>
+                <artifactId>maven-assembly-plugin</artifactId>
+                <configuration>
+                    <skipAssembly>true</skipAssembly>
                 </configuration>
             </plugin>
             <plugin>
@@ -109,6 +109,9 @@
                                 <![CDATA[This connector is <a href="https://www.confluent.io/subscription/">supported by Confluent</a> as part of a
                                 <a href="https://www.confluent.io/product/confluent-platform/">Confluent Platform</a> subscription.]]>
                             </supportSummary>
+                            <excludes>
+                                <exclude>io.netty:*</exclude>
+                            </excludes>
                         </configuration>
                     </execution>
                 </executions>

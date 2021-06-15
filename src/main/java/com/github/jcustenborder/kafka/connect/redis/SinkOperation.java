@@ -15,6 +15,7 @@
  */
 package com.github.jcustenborder.kafka.connect.redis;
 
+import io.lettuce.core.RedisCommandInterruptedException;
 import io.lettuce.core.RedisFuture;
 import io.lettuce.core.cluster.api.async.RedisClusterAsyncCommands;
 import org.apache.kafka.connect.errors.RetriableException;
@@ -25,7 +26,12 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionStage;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
+import java.util.stream.Collectors;
 
 abstract class SinkOperation {
   private static final Logger log = LoggerFactory.getLogger(SinkOperation.class);
@@ -58,6 +64,30 @@ abstract class SinkOperation {
       throw new RetriableException(
           String.format("Timeout after %s ms while waiting for operation to complete.", this.config.operationTimeoutMs)
       );
+    }
+  }
+
+  protected void wait(CompletableFuture<Void> future) {
+    log.debug("wait() - future = {}", future);
+    if (!await(future, this.config.operationTimeoutMs, TimeUnit.MILLISECONDS)) {
+      future.cancel(true);
+      throw new RetriableException(
+          String.format("Timeout after %s ms while waiting for operation to complete.", this.config.operationTimeoutMs)
+      );
+    }
+  }
+
+  public boolean await(CompletableFuture<?> future, long timeout, TimeUnit unit) {
+    try {
+      future.get(timeout, unit);
+      return true;
+    } catch (InterruptedException var5) {
+      Thread.currentThread().interrupt();
+      throw new RedisCommandInterruptedException(var5);
+    } catch (ExecutionException var6) {
+      return true;
+    } catch (TimeoutException var7) {
+      return false;
     }
   }
 
@@ -105,7 +135,6 @@ abstract class SinkOperation {
 
   static class SetOperation extends SinkOperation {
     final Map<byte[], byte[]> sets;
-
     SetOperation(RedisSinkConnectorConfig config, int size) {
       super(Type.SET, config);
       this.sets = new LinkedHashMap<>(size);
@@ -118,9 +147,20 @@ abstract class SinkOperation {
 
     @Override
     public void execute(RedisClusterAsyncCommands<byte[], byte[]> asyncCommands) throws InterruptedException {
-      log.debug("execute() - Calling mset with {} value(s)", this.sets.size());
-      RedisFuture<?> future = asyncCommands.mset(this.sets);
-      wait(future);
+      if (Long.MAX_VALUE == super.config.recordExpiry) {
+        log.debug("execute() - Calling mset with {} value(s)", this.sets.size());
+        RedisFuture<?> future = asyncCommands.mset(this.sets);
+        wait(future);
+      } else {
+        log.debug("execute() - Calling setex with {} value(s)", this.sets.size());
+        final List<CompletableFuture<String>> collect = this.sets.entrySet()
+            .stream()
+            .map(entry -> asyncCommands.setex(entry.getKey(), super.config.recordExpiry, entry.getValue()))
+            .map(CompletionStage::toCompletableFuture)
+            .collect(Collectors.toList());
+        final CompletableFuture<Void> listCompletableFuture = CompletableFuture.allOf(collect.toArray(new CompletableFuture<?>[0]));
+        wait(listCompletableFuture);
+      }
     }
 
     @Override

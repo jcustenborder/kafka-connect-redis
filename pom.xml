@@ -57,6 +57,18 @@
         <system>github</system>
         <url>https://github.com/jcustenborder/kafka-connect-redis/issues</url>
     </issueManagement>
+    <repositories>
+        <repository>
+            <id>confluent</id>
+            <name>Confluent</name>
+            <url>https://packages.confluent.io/maven/</url>
+        </repository>
+        <repository>
+            <id>palantir</id>
+            <name>Palantir</name>
+            <url>https://dl.bintray.com/palantir/releases/</url>
+        </repository>
+    </repositories>
     <dependencies>
         <dependency>
             <groupId>io.lettuce</groupId>

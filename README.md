@@ -231,6 +231,15 @@ The SSL provider to use.
 
 *Validator:* Matches: ``OPENSSL``, ``JDK``
 
+##### `redis.expiry`
+
+The expiry time for records.
+
+*Importance:* Low
+
+*Type:* Long
+
+*Default Value:* No expiry
 
 
 

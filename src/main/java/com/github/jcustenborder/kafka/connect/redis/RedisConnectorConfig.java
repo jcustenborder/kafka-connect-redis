@@ -76,6 +76,9 @@ class RedisConnectorConfig extends AbstractConfig {
   public final static String CONNECTION_RETRY_DELAY_MS_CONF = "redis.connection.retry.delay.ms";
   public final static String CONNECTION_RETRY_DELAY_MS_DOC = "The amount of milliseconds to wait between redis connection attempts.";
 
+  public static final String RECORD_EXPIRY_CONFIG = "redis.expiry";
+  static final String RECORD_EXPIRY_DOC = "Expiry time in seconds for records.";
+
   public final ClientMode clientMode;
   public final List<HostAndPort> hosts;
 
@@ -96,6 +99,7 @@ class RedisConnectorConfig extends AbstractConfig {
   public final String truststorePassword;
   public final int retryDelay;
   public final int maxAttempts;
+  public final long recordExpiry;
 
 
   public RedisConnectorConfig(ConfigDef config, Map<?, ?> originals) {
@@ -121,6 +125,7 @@ class RedisConnectorConfig extends AbstractConfig {
     this.truststorePassword = Strings.isNullOrEmpty(trustPassword) ? null : trustPassword;
     this.maxAttempts = getInt(CONNECTION_ATTEMPTS_CONF);
     this.retryDelay = getInt(CONNECTION_RETRY_DELAY_MS_CONF);
+    this.recordExpiry = getLong(RECORD_EXPIRY_CONFIG);
   }
 
   public static ConfigDef config() {
@@ -229,6 +234,14 @@ class RedisConnectorConfig extends AbstractConfig {
                 .documentation(CONNECTION_RETRY_DELAY_MS_DOC)
                 .defaultValue(2000)
                 .validator(ConfigDef.Range.atLeast(100))
+                .importance(ConfigDef.Importance.MEDIUM)
+                .build()
+
+        ).define(
+            ConfigKeyBuilder.of(RECORD_EXPIRY_CONFIG, ConfigDef.Type.LONG)
+                .documentation(RECORD_EXPIRY_DOC)
+                .defaultValue(Long.MAX_VALUE)
+                .validator(ConfigDef.Range.atLeast(1))
                 .importance(ConfigDef.Importance.MEDIUM)
                 .build()
         );

@@ -178,6 +178,7 @@ class RedisSessionFactoryImpl implements RedisSessionFactory {
     @Override
     public void close() throws Exception {
       this.connection.close();
+      this.client.shutdown();
     }
   }
 }

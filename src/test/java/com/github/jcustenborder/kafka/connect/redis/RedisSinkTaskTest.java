@@ -145,9 +145,8 @@ public class RedisSinkTaskTest {
     task.put(records);
 
     InOrder inOrder = Mockito.inOrder(asyncCommands);
-    inOrder.verify(asyncCommands).mset(anyMap());
     inOrder.verify(asyncCommands).del(any(byte[].class));
-    inOrder.verify(asyncCommands, times(2)).mset(anyMap());
+    inOrder.verify(asyncCommands).mset(anyMap());
   }
 
 }

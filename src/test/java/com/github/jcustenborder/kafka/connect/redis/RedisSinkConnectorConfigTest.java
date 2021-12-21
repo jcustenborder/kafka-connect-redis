@@ -1,23 +1,27 @@
 package com.github.jcustenborder.kafka.connect.redis;
 
 import com.google.common.net.HostAndPort;
+import io.lettuce.core.RedisFuture;
 import org.apache.kafka.common.config.ConfigException;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.platform.commons.logging.Logger;
+import org.junit.platform.commons.logging.LoggerFactory;
 
 import java.io.File;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.*;
 
 public class RedisSinkConnectorConfigTest {
 
     private Map<String, String> props;
+    private final Logger log = LoggerFactory.getLogger(RedisSinkConnectorConfigTest.class);
 
     @BeforeEach
     public void setup() {
@@ -235,5 +239,56 @@ public class RedisSinkConnectorConfigTest {
         Assertions.assertThrows(ConfigException.class, () -> {
             new RedisSinkConnectorConfig(props);
         });
+    }
+
+    @Test
+    public void testRedisActionConfigDefaultsToSet() {
+        RedisSinkConnectorConfig config = new RedisSinkConnectorConfig(props);
+        assertEquals(config.redisAction, "set");
+    }
+
+    @Test
+    public void testRedisActionConfigReceivesPublishAction() {
+        props.put(RedisSinkConnectorConfig.REDIS_ACTION_CONF, "publish");
+        RedisSinkConnectorConfig config = new RedisSinkConnectorConfig(props);
+        assertEquals(config.redisAction, "publish");
+    }
+
+    @Test
+    public void testRedisActionConfigReceivesSetAction() {
+        props.put(RedisSinkConnectorConfig.REDIS_ACTION_CONF, "set");
+        RedisSinkConnectorConfig config = new RedisSinkConnectorConfig(props);
+        assertEquals(config.redisAction, "set");
+    }
+
+    @Test
+    public void testInvalidRedisActionConfigThrowsConfigException() {
+        props.put(RedisSinkConnectorConfig.REDIS_ACTION_CONF, "invalid");
+        Assertions.assertThrows(ConfigException.class, () -> {
+            new RedisSinkConnectorConfig(props);
+        });
+    }
+
+    @Test
+    public void testRedisChannelArgumentDefaultsToNull() {
+        RedisSinkConnectorConfig config = new RedisSinkConnectorConfig(props);
+        assertEquals(config.redisChannel, "");
+    }
+
+    @Test
+    public void testRedisChannelArgumentReceivesStringValue() {
+        props.put(RedisSinkConnectorConfig.REDIS_CHANNEL_CONF, "my-channel");
+        RedisSinkConnectorConfig config = new RedisSinkConnectorConfig(props);
+        assertEquals(config.redisChannel, "my-channel");
+    }
+
+    @Test
+    public void testRedisChannelArgumentReceivesStringValueAndPublishesMessage() throws InterruptedException {
+        RedisSinkConnectorConfig config = new RedisSinkConnectorConfig(props);
+        RedisSession sesh = new RedisSessionFactoryImpl().create(config);
+        Map<byte[],  byte[]> redisVals = new HashMap<>();
+        redisVals.put("key".getBytes(StandardCharsets.UTF_8), "value".getBytes(StandardCharsets.UTF_8));
+        RedisFuture<String> res = sesh.asyncCommands().mset(redisVals);
+        res.wait();
     }
 }

@@ -15,7 +15,6 @@
  */
 package com.github.jcustenborder.kafka.connect.redis;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.github.jcustenborder.kafka.connect.utils.VersionUtil;
 import com.github.jcustenborder.kafka.connect.utils.data.SinkOffsetState;
 import com.github.jcustenborder.kafka.connect.utils.data.TopicPartitionCounter;
@@ -32,7 +31,13 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -100,57 +105,89 @@ public class RedisSinkTask extends SinkTask {
     }
   }
 
-    @Override
-    public void put(Collection <SinkRecord> records) {
-      log.debug("put() - Processing {} record(s)", records.size());
-      SinkOperation deleteOp = SinkOperation.create(SinkOperation.Type.DELETE, this.config, records.size());
-      Stream<RedisRecord> deletes = records
-              .stream()
-              .filter(r -> r.value() == null)
-              .map(r -> RedisRecord.fromDeleteRecord(r, this.config));
-      deletes.forEach(d -> deleteOp.add(d.key(), d.value()));
-
-      SinkOperation setOp = SinkOperation.create(SinkOperation.Type.SET, this.config, records.size());
-      Stream<RedisRecord> sets = Stream.concat(
-              records
-                      .stream()
-                      .filter(r -> r.value() != null)
-                      .map(r -> RedisRecord.fromSetRecord(r, this.config)),
-              records
-                      .stream()
-                      .map(r -> SinkOffsetState.of(r.topic(), r.kafkaPartition(), r.kafkaOffset()))
-                      .map(RedisRecord::fromSinkOffsetState)
-              );
-      sets.forEach(s -> setOp.add(s.key(), s.value()));
-
-      Arrays.asList(deleteOp, setOp).forEach(op -> {
-        try {
-          if (op.size() > 0) {
-            log.debug(
-                    "put() - Found  operation of type {} in {} record{s}. Executing operation...",
-                    op.type,
-                    op.size()
-            );
-            op.execute(this.session.asyncCommands());
-          }
-        } catch (InterruptedException e) {
-          e.printStackTrace();
-        }
-      });
+  public void processBatch(Collection<SinkRecord> records, TopicPartitionCounter counter) throws InterruptedException {
+    List<RedisRecord> redisRecords = new ArrayList<>();
+    for (SinkRecord r : records) {
+      counter.increment(r);
+      redisRecords.add(RedisRecord.fromBatchableSinkRecord(r, this.config));
     }
 
-    private static String redisOffsetKey (TopicPartition topicPartition){
-      return String.format("__kafka.offset.%s.%s", topicPartition.topic(), topicPartition.partition());
-    }
+    Stream<RedisRecord> offsets = counter.offsetStates()
+            .stream()
+            .map(RedisRecord::fromSinkOffsetState);
 
-    @Override
-    public void stop () {
-      try {
-        if (null != this.session) {
-          this.session.close();
-        }
-      } catch (Exception e) {
-        log.warn("Exception thrown", e);
-      }
+    List<RedisRecord> allRecords = Stream.concat(redisRecords.stream(), offsets).collect(Collectors.toList());
+    for (SinkOperation op : operationsFromRecords(allRecords)) {
+      log.debug(
+              "put() - Found  operation of type {} in {} record{s}. Executing operation...",
+              op.type,
+              op.size()
+      );
+      op.execute(this.session.asyncCommands());
     }
   }
+
+  public void processStream(Collection<SinkRecord> records, TopicPartitionCounter counter) throws InterruptedException {
+    // loop through the records
+    for (SinkRecord r : records) {
+      counter.increment(r);
+      RedisRecord redisRecord = RedisRecord.fromSinkRecord(r, config);
+      session.asyncCommands().publish(redisRecord.key(), redisRecord.value());
+    }
+
+    SinkOperation setOp = SinkOperation.create(SinkOperation.Type.SET, config, counter.offsetStates().size());
+    counter.offsetStates()
+            .stream()
+            .map(RedisRecord::fromSinkOffsetState)
+            .forEach(r -> setOp.add(r.key(), r.value()));
+    setOp.execute(session.asyncCommands());
+  }
+
+  @Override
+  public void put(Collection<SinkRecord> records) {
+    log.debug("put() - Processing {} record(s)", records.size());
+    TopicPartitionCounter counter = new TopicPartitionCounter();
+    try {
+      if (shouldProcessAsBatch()) {
+        processBatch(records, counter);
+      } else {
+        processStream(records, counter);
+      }
+    } catch (InterruptedException e) {
+      e.printStackTrace();
+    }
+  }
+
+  private List<SinkOperation> operationsFromRecords(List<RedisRecord> allRecords) {
+    List<SinkOperation> operations = new ArrayList<>(allRecords.size());
+    SinkOperation.Type currentOpType = SinkOperation.Type.NONE;
+    SinkOperation currentOp = SinkOperation.NONE;
+    for (RedisRecord r : allRecords) {
+      if (!currentOpType.equals(r.type())) {
+        currentOpType = r.type();
+        currentOp = SinkOperation.create(currentOpType, this.config, allRecords.size());
+        operations.add(currentOp);
+      }
+      currentOp.add(r.key(), r.value());
+    }
+    return operations;
+  }
+  private static String redisOffsetKey(TopicPartition topicPartition) {
+    return String.format("__kafka.offset.%s.%s", topicPartition.topic(), topicPartition.partition());
+  }
+
+  @Override
+  public void stop() {
+    try {
+      if (null != this.session) {
+        this.session.close();
+      }
+    } catch (Exception e) {
+      log.warn("Exception thrown", e);
+    }
+  }
+
+  public boolean shouldProcessAsBatch() {
+    return !config.redisAction.equals("publish");
+  }
+}

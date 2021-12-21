@@ -25,6 +25,7 @@ import io.lettuce.core.RedisURI;
 import io.lettuce.core.SocketOptions;
 import org.apache.kafka.common.config.AbstractConfig;
 import org.apache.kafka.common.config.ConfigDef;
+import org.apache.kafka.common.config.ConfigException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -43,7 +44,7 @@ class RedisConnectorConfig extends AbstractConfig {
   public static final String PASSWORD_CONFIG = "redis.password";
   static final String PASSWORD_DOC = "Password used to connect to Redis.";
   public static final String DATABASE_CONFIG = "redis.database";
-  static final String DATABASE_DOC = "Redis database to connect to.";
+  static final String DATABASE_DOC = "Redis database to connect to. Defaults to 1 (Note that the redis-cli defaults to 0)";
   public static final String CLIENT_MODE_CONFIG = "redis.client.mode";
   static final String CLIENT_MODE_DOC = "The client mode to use when interacting with the Redis " +
       "cluster.";
@@ -76,6 +77,13 @@ class RedisConnectorConfig extends AbstractConfig {
   public final static String CONNECTION_RETRY_DELAY_MS_CONF = "redis.connection.retry.delay.ms";
   public final static String CONNECTION_RETRY_DELAY_MS_DOC = "The amount of milliseconds to wait between redis connection attempts.";
 
+  public final static String REDIS_ACTION_CONF = "redis.action";
+  public final static String REDIS_ACTION_DOC = "The redis function to be executed on the record. Current supported values: set, publish";
+  public final static String REDIS_ACTION_DEFAULT = "set";
+
+  public static final String REDIS_CHANNEL_CONF = "redis.channel";
+  private static final String REDIS_CHANNEL_DOC = "Redis pub-sub channel";
+
   public final ClientMode clientMode;
   public final List<HostAndPort> hosts;
 
@@ -96,6 +104,8 @@ class RedisConnectorConfig extends AbstractConfig {
   public final String truststorePassword;
   public final int retryDelay;
   public final int maxAttempts;
+  public final String redisAction;
+  public String redisChannel;
 
 
   public RedisConnectorConfig(ConfigDef config, Map<?, ?> originals) {
@@ -121,6 +131,8 @@ class RedisConnectorConfig extends AbstractConfig {
     this.truststorePassword = Strings.isNullOrEmpty(trustPassword) ? null : trustPassword;
     this.maxAttempts = getInt(CONNECTION_ATTEMPTS_CONF);
     this.retryDelay = getInt(CONNECTION_RETRY_DELAY_MS_CONF);
+    this.redisAction = getString(REDIS_ACTION_CONF);
+    this.redisChannel = getString(REDIS_CHANNEL_CONF);
   }
 
   public static ConfigDef config() {
@@ -231,7 +243,24 @@ class RedisConnectorConfig extends AbstractConfig {
                 .validator(ConfigDef.Range.atLeast(100))
                 .importance(ConfigDef.Importance.MEDIUM)
                 .build()
-        );
+        ).define(
+                ConfigKeyBuilder.of(REDIS_ACTION_CONF, ConfigDef.Type.STRING)
+                    .documentation(REDIS_ACTION_DOC)
+                    .defaultValue(REDIS_ACTION_DEFAULT)
+                    .importance(ConfigDef.Importance.MEDIUM)
+                    .validator(((s, o) -> {
+                      List<String> validActions = Arrays.asList("", "set", "publish");
+                      if (!validActions.contains((String) o)) {
+                        throw new ConfigException("Action not supported");
+                      }
+                    }))
+                    .build()
+            ).define(ConfigKeyBuilder.of(REDIS_CHANNEL_CONF, ConfigDef.Type.STRING)
+              .documentation(REDIS_CHANNEL_DOC)
+              .defaultValue("")
+              .importance(ConfigDef.Importance.MEDIUM)
+              .build()
+            );
   }
 
   public List<RedisURI> redisURIs() {

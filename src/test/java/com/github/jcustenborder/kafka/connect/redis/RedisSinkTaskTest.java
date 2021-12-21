@@ -15,12 +15,14 @@
  */
 package com.github.jcustenborder.kafka.connect.redis;
 
+import com.github.jcustenborder.kafka.connect.utils.data.TopicPartitionCounter;
 import com.google.common.base.Charsets;
 import com.google.common.base.Strings;
 import com.google.common.collect.ImmutableMap;
 import io.lettuce.core.RedisFuture;
 import io.lettuce.core.cluster.api.async.RedisAdvancedClusterAsyncCommands;
 import io.lettuce.core.cluster.api.async.RedisClusterAsyncCommands;
+import org.apache.kafka.common.protocol.types.Field;
 import org.apache.kafka.connect.data.Schema;
 import org.apache.kafka.connect.data.SchemaAndValue;
 import org.apache.kafka.connect.errors.DataException;
@@ -29,19 +31,21 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.InOrder;
 import org.mockito.Mockito;
+import sun.util.resources.cldr.zh.CalendarData_zh_Hans_HK;
 
+import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 import static com.github.jcustenborder.kafka.connect.utils.SinkRecordHelper.write;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.withSettings;
 
@@ -132,21 +136,116 @@ public class RedisSinkTaskTest {
     );
   }
 
+  private List<SinkRecord> records () {
+    return Arrays.asList(
+            record("set1", "asdf"),
+            record("set2", "asdf"),
+            record("delete1", null),
+            record("set3", "asdf"),
+            record("set4", "asdf"),
+            record("delete2", null)
+    );
+  }
+
   @Test
   public void put() throws InterruptedException {
-    List<SinkRecord> records = Arrays.asList(
-        record("set1", "asdf"),
-        record("set2", "asdf"),
-        record("delete1", null),
-        record("set3", "asdf"),
-        record("set4", "asdf")
-    );
-
-    task.put(records);
+    task.put(records());
 
     InOrder inOrder = Mockito.inOrder(asyncCommands);
+    inOrder.verify(asyncCommands).mset(anyMap());
     inOrder.verify(asyncCommands).del(any(byte[].class));
+    inOrder.verify(asyncCommands).mset(anyMap());
+    inOrder.verify(asyncCommands).del(any(byte[].class));
+    // Sets the offset record(s)
     inOrder.verify(asyncCommands).mset(anyMap());
   }
 
+  @Test
+  public void testCallsSetAndDeleteWhenConfigIsDefault() {
+    RedisSinkTask mockTask = Mockito.spy(task);
+    List<SinkRecord> records = records();
+    mockTask.put(records);
+    Mockito.verify(mockTask, Mockito.times(1)).processBatch(records, any());
+  }
+
+  @Test
+  public void testDoesntCallSetAndDeleteWhenActionIsPublish() {
+    Map<String, String> props = new HashMap<>();
+    props.put(RedisSinkConnectorConfig.REDIS_ACTION_CONF, "publish");
+    task.config = new RedisSinkConnectorConfig(props);
+    List<SinkRecord> records = records();
+    RedisSinkTask mockTask = Mockito.spy(task);
+    mockTask.put(records);
+    Mockito.verify(mockTask, Mockito.times(0)).processBatch(any(), any());
+  }
+
+  @Test
+  public void testCallsPublishWhenActionIsPublish() throws InterruptedException {
+    Map<String, String> props = new HashMap<>();
+    props.put(RedisSinkConnectorConfig.REDIS_ACTION_CONF, "publish");
+    task.config = new RedisSinkConnectorConfig(props);
+    List<SinkRecord> records = records();
+    RedisSinkTask mockTask = Mockito.spy(task);
+    mockTask.put(records);
+    Mockito.verify(mockTask, Mockito.times(1)).processStream(any(),any());
+  }
+
+  @Test
+  public void testShouldProcessAsBatchReturnsTrueWhenActionIsBatchable() {
+    boolean shouldBatch = task.shouldProcessAsBatch();
+    assertTrue(shouldBatch);
+  }
+
+  @Test
+  public void testShouldProcessAsBatchReturnsFalseWhenActionIsNotBatchable() {
+    Map<String, String> props = new HashMap<>();
+    props.put(RedisSinkConnectorConfig.REDIS_ACTION_CONF, "publish");
+    task.config = new RedisSinkConnectorConfig(props);
+    boolean shouldBatch = task.shouldProcessAsBatch();
+    assertFalse(shouldBatch);
+  }
+
+  @Test
+  public void RedisRecordFromBatchableRecorWithNonNullValuedHasSETOperationType() {
+    Map<String, String> props = new HashMap<>();
+    SinkRecord rec = record("set1", "asdf");
+    RedisSinkConnectorConfig config = new RedisSinkConnectorConfig(props);
+    SinkOperation.Type expected = new RedisRecord(
+            "set1".getBytes(StandardCharsets.UTF_8),
+            "asdf".getBytes(StandardCharsets.UTF_8),
+            SinkOperation.Type.SET
+    ).type();
+    SinkOperation.Type actual = RedisRecord.fromBatchableSinkRecord(rec, config).type();
+    assertEquals(actual, expected);
+  }
+
+  @Test
+  public void RedisRecordFromBatchableRecorWithNullValuedHasDELETEOperationType() {
+    Map<String, String> props = new HashMap<>();
+    SinkRecord rec = record("delete1", null);
+    RedisSinkConnectorConfig config = new RedisSinkConnectorConfig(props);
+    SinkOperation.Type expected = new RedisRecord(
+            "delete1".getBytes(StandardCharsets.UTF_8),
+            null,
+            SinkOperation.Type.DELETE
+    ).type();
+    SinkOperation.Type actual = RedisRecord.fromBatchableSinkRecord(rec, config).type();
+    assertEquals(actual, expected);
+  }
+
+  @Test
+  public void RedisRecordFromPublishRecordReturnsExpectedValue() {
+    Map<String, String> props = new HashMap<>();
+    props.put(RedisSinkConnectorConfig.REDIS_ACTION_CONF, "publish");
+    props.put(RedisSinkConnectorConfig.REDIS_CHANNEL_CONF, "my-channel");
+    SinkRecord rec = record("publish1", "asdf");
+    RedisSinkConnectorConfig config = new RedisSinkConnectorConfig(props);
+    SinkOperation.Type expected = new RedisRecord(
+            "my-channel".getBytes(StandardCharsets.UTF_8),
+            "asdf".getBytes(StandardCharsets.UTF_8),
+            SinkOperation.Type.PUBLISH
+    ).type();
+    SinkOperation.Type actual = RedisRecord.fromSinkRecord(rec, config).type();
+    assertEquals(actual, expected);
+  }
 }

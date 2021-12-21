@@ -42,6 +42,7 @@ abstract class SinkOperation {
   public enum Type {
     SET,
     DELETE,
+    PUBLISH,
     NONE
   }
 

@@ -17,12 +17,11 @@ package com.github.jcustenborder.kafka.connect.redis;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.github.jcustenborder.kafka.connect.utils.VersionUtil;
-import com.github.jcustenborder.kafka.connect.utils.data.SinkOffsetState;
-import com.github.jcustenborder.kafka.connect.utils.data.TopicPartitionCounter;
 import com.github.jcustenborder.kafka.connect.utils.jackson.ObjectMapperFactory;
 import com.google.common.base.Charsets;
 import io.lettuce.core.KeyValue;
 import io.lettuce.core.RedisFuture;
+import org.apache.kafka.clients.consumer.OffsetAndMetadata;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.connect.errors.DataException;
 import org.apache.kafka.connect.errors.RetriableException;
@@ -146,8 +145,6 @@ public class RedisSinkTask extends SinkTask {
 
     SinkOperation operation = SinkOperation.NONE;
 
-    TopicPartitionCounter counter = new TopicPartitionCounter();
-
     for (SinkRecord record : records) {
       log.trace("put() - Processing record " + formatLocation(record));
       if (null == record.key()) {
@@ -182,7 +179,6 @@ public class RedisSinkTask extends SinkTask {
         operations.add(operation);
       }
       operation.add(key, value);
-      counter.increment(record.topic(), record.kafkaPartition(), record.kafkaOffset());
     }
 
     log.debug(
@@ -191,30 +187,47 @@ public class RedisSinkTask extends SinkTask {
         records.size()
     );
 
-    final List<SinkOffsetState> offsetData = counter.offsetStates();
-    if (!offsetData.isEmpty()) {
-      operation = SinkOperation.create(SinkOperation.Type.SET, this.config, offsetData.size());
-      operations.add(operation);
-      for (SinkOffsetState e : offsetData) {
-        final byte[] key = String.format("__kafka.offset.%s.%s", e.topic(), e.partition()).getBytes(Charsets.UTF_8);
-        final byte[] value;
-        try {
-          value = ObjectMapperFactory.INSTANCE.writeValueAsBytes(e);
-        } catch (JsonProcessingException e1) {
-          throw new DataException(e1);
-        }
-        operation.add(key, value);
-        log.trace("put() - Setting offset: {}", e);
-      }
-    }
-
     for (SinkOperation op : operations) {
       log.debug("put() - Executing {} operation with {} values", op.type, op.size());
       try {
         op.execute(this.session.asyncCommands());
       } catch (InterruptedException e) {
+        log.warn("Exception thrown while executing operation", e);
         throw new RetriableException(e);
       }
+    }
+  }
+
+  @Override
+  public void flush(Map<TopicPartition, OffsetAndMetadata> currentOffsets) {
+    SinkOperation operation = SinkOperation.create(SinkOperation.Type.SET, this.config, currentOffsets.size());
+
+    List<SinkOffsetState> states = currentOffsets
+        .entrySet().stream()
+        .map(e -> ImmutableSinkOffsetState.builder()
+            .topic(e.getKey().topic())
+            .partition(e.getKey().partition())
+            .offset(e.getValue().offset())
+            .build()
+        ).collect(Collectors.toList());
+
+    for (SinkOffsetState e : states) {
+      final byte[] key = String.format("__kafka.offset.%s.%s", e.topic(), e.partition()).getBytes(Charsets.UTF_8);
+      final byte[] value;
+      try {
+        value = ObjectMapperFactory.INSTANCE.writeValueAsBytes(e);
+      } catch (JsonProcessingException e1) {
+        throw new DataException(e1);
+      }
+      operation.add(key, value);
+      log.trace("put() - Setting offset: {}", e);
+    }
+
+    try {
+      operation.execute(this.session.asyncCommands());
+    } catch (InterruptedException e) {
+      log.warn("Exception thrown while executing operation", e);
+      throw new RetriableException(e);
     }
   }
 

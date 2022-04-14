@@ -21,6 +21,8 @@ import com.google.common.collect.ImmutableMap;
 import io.lettuce.core.RedisFuture;
 import io.lettuce.core.cluster.api.async.RedisAdvancedClusterAsyncCommands;
 import io.lettuce.core.cluster.api.async.RedisClusterAsyncCommands;
+import org.apache.kafka.clients.consumer.OffsetAndMetadata;
+import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.connect.data.Schema;
 import org.apache.kafka.connect.data.SchemaAndValue;
 import org.apache.kafka.connect.errors.DataException;
@@ -48,6 +50,8 @@ import static org.mockito.Mockito.withSettings;
 public class RedisSinkTaskTest {
   long offset = 1;
 
+  SinkRecord lastRecord;
+
   SinkRecord record(String k, String v) {
     final byte[] key = k.getBytes(Charsets.UTF_8);
     final Schema keySchema = Schema.BYTES_SCHEMA;
@@ -62,7 +66,7 @@ public class RedisSinkTaskTest {
       valueSchema = Schema.BYTES_SCHEMA;
     }
 
-    return new SinkRecord(
+    return lastRecord = new SinkRecord(
         "topic",
         1,
         keySchema,
@@ -147,6 +151,8 @@ public class RedisSinkTaskTest {
     InOrder inOrder = Mockito.inOrder(asyncCommands);
     inOrder.verify(asyncCommands).mset(anyMap());
     inOrder.verify(asyncCommands).del(any(byte[].class));
+
+    task.flush(ImmutableMap.of(new TopicPartition(lastRecord.topic(), lastRecord.kafkaPartition()), new OffsetAndMetadata(lastRecord.kafkaOffset())));
     inOrder.verify(asyncCommands, times(2)).mset(anyMap());
   }
 

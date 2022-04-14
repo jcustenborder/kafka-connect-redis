@@ -63,6 +63,10 @@
             <artifactId>lettuce-core</artifactId>
             <version>5.2.1.RELEASE</version>
         </dependency>
+        <dependency>
+            <groupId>com.github.jcustenborder.kafka.connect</groupId>
+            <artifactId>connect-utils-jackson</artifactId>
+        </dependency>
     </dependencies>
     <build>
         <plugins>

@@ -19,25 +19,46 @@ import io.lettuce.core.cluster.models.partitions.RedisClusterNode;
 import io.lettuce.core.cluster.pubsub.RedisClusterPubSubListener;
 import io.lettuce.core.pubsub.RedisPubSubListener;
 import org.apache.kafka.connect.data.Schema;
+import org.apache.kafka.connect.header.ConnectHeaders;
 import org.apache.kafka.connect.source.SourceRecord;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.nio.charset.StandardCharsets;
 import java.util.Map;
 
 public class RedisPubSubSourceTask extends AbstractRedisPubSubSourceTask<RedisPubSubSourceConnectorConfig>
     implements RedisPubSubListener<byte[], byte[]>, RedisClusterPubSubListener<byte[], byte[]> {
-  private static final Logger log = LoggerFactory.getLogger(AbstractRedisCacheSinkTask.class);
+  private static final Logger log = LoggerFactory.getLogger(RedisPubSubSourceTask.class);
 
   @Override
   public void start(Map<String, String> settings) {
     super.start(settings);
     this.session.connection().addListener(this);
-    log.info("start() - Subscribing to {}", this.config.channels);
-    byte[][] subscriptions = this.config.channels.stream()
+
+    byte[][] subscribeChannels = this.config.channels.stream()
         .map(s -> s.getBytes(this.config.charset))
         .toArray(byte[][]::new);
-    this.session.asyncCommands().subscribe(subscriptions);
+    if (subscribeChannels.length > 0) {
+      log.info("start() - Subscribing to {}", this.config.channels);
+      this.session.asyncCommands().subscribe(subscribeChannels);
+    }
+    byte[][] subscribePatterns = this.config.channelPatterns.stream()
+        .map(s -> s.getBytes(this.config.charset))
+        .toArray(byte[][]::new);
+    if (subscribePatterns.length > 0) {
+      log.info("start() - Subscribing to patterns {}", this.config.channelPatterns);
+      switch (this.config.clientMode) {
+        case Standalone:
+          this.session.asyncCommands().psubscribe(subscribePatterns);
+          break;
+        case Cluster:
+
+          break;
+      }
+
+
+    }
   }
 
   @Override
@@ -45,9 +66,22 @@ public class RedisPubSubSourceTask extends AbstractRedisPubSubSourceTask<RedisPu
     return new RedisPubSubSourceConnectorConfig(settings);
   }
 
-  void addRecord(byte[] channel, byte[] message) {
-    String topic = new String(channel, this.config.charset);
-    log.trace("addRecord() - topic = '{}'", topic);
+  void addRecord(RedisClusterNode node, byte[] channel, byte[] pattern, byte[] message) {
+    final String channelName = new String(channel, this.config.charset);
+    String topic = this.config.topicPrefix + channelName;
+    log.trace("addRecord() - channelName = '{}' topic = '{}'", channelName, topic);
+
+    ConnectHeaders headers = new ConnectHeaders();
+    headers.addBytes("redis.channel", channel);
+
+    if (null != pattern) {
+      headers.addBytes("redis.channel.pattern", pattern);
+    }
+
+    if (null != node) {
+      headers.addString("redis.node.id", node.getNodeId());
+      headers.addString("redis.node.uri", node.getUri().toString());
+    }
 
     this.records.add(
         new SourceRecord(
@@ -58,68 +92,78 @@ public class RedisPubSubSourceTask extends AbstractRedisPubSubSourceTask<RedisPu
             null,
             null,
             Schema.BYTES_SCHEMA,
-            message
+            message,
+            null,
+            headers
         )
     );
   }
 
   @Override
   public void message(byte[] channel, byte[] message) {
-    addRecord(channel, message);
+    addRecord(null, channel, null, message);
   }
 
   @Override
   public void message(byte[] pattern, byte[] channel, byte[] message) {
-    addRecord(channel, message);
-  }
-
-  @Override
-  public void subscribed(byte[] channel, long count) {
-
-  }
-
-  @Override
-  public void psubscribed(byte[] pattern, long count) {
-
-  }
-
-  @Override
-  public void unsubscribed(byte[] channel, long count) {
-
-  }
-
-  @Override
-  public void punsubscribed(byte[] pattern, long count) {
-
+    addRecord(null, channel, pattern, message);
   }
 
   @Override
   public void message(RedisClusterNode node, byte[] channel, byte[] message) {
-    addRecord(channel, message);
+    addRecord(node, channel, null, message);
   }
 
   @Override
   public void message(RedisClusterNode node, byte[] pattern, byte[] channel, byte[] message) {
-    addRecord(channel, message);
+    addRecord(node, channel, pattern, message);
+  }
+
+  @Override
+  public void subscribed(byte[] channel, long count) {
+    final String channelName = new String(channel, StandardCharsets.UTF_8);
+    log.info("subscribed(channel = '{}', count = {})", channelName, count);
+  }
+
+  @Override
+  public void psubscribed(byte[] pattern, long count) {
+    final String patternName = new String(pattern, StandardCharsets.UTF_8);
+    log.info("psubscribed(pattern = '{}', count = {})", patternName, count);
+  }
+
+  @Override
+  public void unsubscribed(byte[] channel, long count) {
+    final String channelName = new String(channel, StandardCharsets.UTF_8);
+    log.info("unsubscribed(channel = '{}', count = {})", channelName, count);
+  }
+
+  @Override
+  public void punsubscribed(byte[] pattern, long count) {
+    final String patternName = new String(pattern, StandardCharsets.UTF_8);
+    log.info("punsubscribed(pattern = '{}', count = {})", patternName, count);
   }
 
   @Override
   public void subscribed(RedisClusterNode node, byte[] channel, long count) {
-
+    final String channelName = new String(channel, StandardCharsets.UTF_8);
+    log.info("subscribed(node = '{}', channel = '{}', count = {})", node.getNodeId(), channelName, count);
   }
 
   @Override
   public void psubscribed(RedisClusterNode node, byte[] channel, long count) {
-
+    final String channelName = new String(channel, StandardCharsets.UTF_8);
+    log.info("psubscribed(node = '{}', channel = '{}', count = {})", node.getNodeId(), channelName, count);
   }
 
   @Override
   public void unsubscribed(RedisClusterNode node, byte[] channel, long count) {
-
+    final String channelName = new String(channel, StandardCharsets.UTF_8);
+    log.info("unsubscribed(node = '{}', channel = '{}', count = {})", node.getNodeId(), channelName, count);
   }
 
   @Override
   public void punsubscribed(RedisClusterNode node, byte[] channel, long count) {
-
+    final String channelName = new String(channel, StandardCharsets.UTF_8);
+    log.info("punsubscribed(node = '{}', channel = '{}', count = {})", node.getNodeId(), channelName, count);
   }
 }

@@ -15,11 +15,8 @@
  */
 package com.github.jcustenborder.kafka.connect.redis;
 
-import com.github.jcustenborder.docker.junit5.Compose;
-import com.github.jcustenborder.docker.junit5.Port;
 import com.google.common.base.Charsets;
 import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import io.lettuce.core.KeyValue;
 import org.apache.kafka.common.TopicPartition;
@@ -33,7 +30,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
-import java.net.InetSocketAddress;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.ExecutionException;
@@ -47,19 +43,18 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-@Compose(
-    dockerComposePath = "src/test/resources/docker-compose.yml"
-)
-public class RedisCacheSinkTaskIT {
-  private static final Logger log = LoggerFactory.getLogger(RedisCacheSinkTaskIT.class);
+public abstract class AbstractRedisCacheSinkTaskIT extends AbstractIntegrationTest<RedisCacheSinkTask> {
+  private static final Logger log = LoggerFactory.getLogger(AbstractRedisCacheSinkTaskIT.class);
 
+  @Override
+  protected RedisCacheSinkTask createTask() {
+    return new RedisCacheSinkTask();
+  }
 
-  RedisCacheSinkTask task;
   AtomicLong offset;
 
   @BeforeEach
-  public void before() {
-    this.task = new RedisCacheSinkTask();
+  public void setupOffset() {
     this.offset = new AtomicLong(1L);
   }
 
@@ -88,41 +83,33 @@ public class RedisCacheSinkTaskIT {
   }
 
   @Test
-  public void emptyAssignment(@Port(container = "redis", internalPort = 6379) InetSocketAddress address) throws ExecutionException, InterruptedException {
-    log.info("address = {}", address);
+  public void emptyAssignment() throws ExecutionException, InterruptedException {
+
     final String topic = "putWrite";
     SinkTaskContext context = mock(SinkTaskContext.class);
     when(context.assignment()).thenReturn(ImmutableSet.of());
     this.task.initialize(context);
-    this.task.start(
-        ImmutableMap.of(RedisSinkConnectorConfig.HOSTS_CONFIG, String.format("%s:%s", address.getHostString(), address.getPort()))
-    );
+    this.task.start(this.settings);
   }
 
   @Test
-  public void putEmpty(@Port(container = "redis", internalPort = 6379) InetSocketAddress address) throws ExecutionException, InterruptedException {
-    log.info("address = {}", address);
+  public void putEmpty() throws ExecutionException, InterruptedException {
     final String topic = "putWrite";
     SinkTaskContext context = mock(SinkTaskContext.class);
     when(context.assignment()).thenReturn(ImmutableSet.of(new TopicPartition(topic, 1)));
     this.task.initialize(context);
-    this.task.start(
-        ImmutableMap.of(RedisSinkConnectorConfig.HOSTS_CONFIG, String.format("%s:%s", address.getHostString(), address.getPort()))
-    );
+    this.task.start(this.settings);
 
     this.task.put(ImmutableList.of());
   }
 
   @Test
-  public void putWrite(@Port(container = "redis", internalPort = 6379) InetSocketAddress address) throws ExecutionException, InterruptedException, IOException, TimeoutException {
-    log.info("address = {}", address);
+  public void putWrite() throws ExecutionException, InterruptedException, IOException, TimeoutException {
     final String topic = "putWrite";
     SinkTaskContext context = mock(SinkTaskContext.class);
     when(context.assignment()).thenReturn(ImmutableSet.of(new TopicPartition(topic, 1)));
     this.task.initialize(context);
-    this.task.start(
-        ImmutableMap.of(RedisSinkConnectorConfig.HOSTS_CONFIG, String.format("%s:%s", address.getHostString(), address.getPort()))
-    );
+    this.task.start(this.settings);
 
     final List<TestLocation> locations = TestLocation.loadLocations();
     final AtomicLong offset = new AtomicLong(1L);
@@ -137,8 +124,8 @@ public class RedisCacheSinkTaskIT {
     List<KeyValue<String, String>> results = this.task.session.asyncCommands().mget(keys).get(30, TimeUnit.SECONDS)
         .stream()
         .map(kv -> KeyValue.fromNullable(
-            new String(kv.getKey(), Charsets.UTF_8),
-            new String(kv.getValue(), Charsets.UTF_8)
+                new String(kv.getKey(), Charsets.UTF_8),
+                new String(kv.getValue(), Charsets.UTF_8)
             )
         ).collect(Collectors.toList());
     assertEquals(keys.length, results.size());
@@ -153,15 +140,12 @@ public class RedisCacheSinkTaskIT {
   }
 
   @Test
-  public void putDelete(@Port(container = "redis", internalPort = 6379) InetSocketAddress address) throws ExecutionException, InterruptedException, IOException, TimeoutException {
-    log.info("address = {}", address);
+  public void putDelete() throws ExecutionException, InterruptedException, IOException, TimeoutException {
     final String topic = "putDelete";
     SinkTaskContext context = mock(SinkTaskContext.class);
     when(context.assignment()).thenReturn(ImmutableSet.of(new TopicPartition(topic, 1)));
     this.task.initialize(context);
-    this.task.start(
-        ImmutableMap.of(RedisSinkConnectorConfig.HOSTS_CONFIG, String.format("%s:%s", address.getHostString(), address.getPort()))
-    );
+    this.task.start(this.settings);
 
     final List<TestLocation> locations = TestLocation.loadLocations();
     final AtomicLong offset = new AtomicLong(1L);

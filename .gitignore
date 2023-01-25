@@ -26,3 +26,5 @@ target
 *.ipr
 *.iws
 *.iml
+
+dependency-reduced-pom.xml

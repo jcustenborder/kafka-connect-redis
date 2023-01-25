@@ -78,8 +78,15 @@ class RedisConnectorConfig extends AbstractConfig {
   static final String SSL_KEYSTORE_PASSWORD_DOC = "The password for the SSL keystore.";
   static final String SSL_TRUSTSTORE_PATH_DOC = "The path to the SSL truststore.";
   static final String SSL_TRUSTSTORE_PASSWORD_DOC = "The password for the SSL truststore.";
-  final static String OPERATION_TIMEOUT_MS_DOC = "The amount of time in milliseconds before an" +
+  static final String OPERATION_TIMEOUT_MS_DOC = "The amount of time in milliseconds before an" +
       " operation is marked as timed out.";
+
+  public final static String CLIENT_NAME_CONFIG = "redis.client.name";
+  public final static String CLIENT_NAME_DOC = "The name that is associated with the client connection(s) from this instance of the connector.";
+
+  public final static String SENTINEL_MASTER_ID_CONFIG = "redis.sentinel.master.id";
+  public final static String SENTINEL_MASTER_ID_DOC = "The sentinel master id to connect to.";
+
   private static final Logger log = LoggerFactory.getLogger(RedisConnectorConfig.class);
   public final ClientMode clientMode;
   public final List<HostAndPort> hosts;
@@ -100,6 +107,8 @@ class RedisConnectorConfig extends AbstractConfig {
   public final int maxAttempts;
   public final long operationTimeoutMs;
   public final Charset charset;
+  public final String clientName;
+  public final String sentinelMasterId;
 
   public RedisConnectorConfig(ConfigDef config, Map<?, ?> originals) {
     super(config, originals);
@@ -126,6 +135,8 @@ class RedisConnectorConfig extends AbstractConfig {
     this.retryDelay = getInt(CONNECTION_RETRY_DELAY_MS_CONF);
     this.operationTimeoutMs = getLong(OPERATION_TIMEOUT_MS_CONF);
     this.charset = ConfigUtils.charset(this, CHARSET_CONF);
+    this.clientName = getString(CLIENT_NAME_CONFIG);
+    this.sentinelMasterId = getString(SENTINEL_MASTER_ID_CONFIG);
   }
 
   public static ConfigDef config() {
@@ -251,30 +262,64 @@ class RedisConnectorConfig extends AbstractConfig {
                 .recommender(Recommenders.charset())
                 .importance(ConfigDef.Importance.LOW)
                 .build()
+        ).define(
+            ConfigKeyBuilder.of(CLIENT_NAME_CONFIG, ConfigDef.Type.STRING)
+                .documentation(CLIENT_NAME_DOC)
+                .defaultValue("kafka-connect-redis")
+                .validator(Validators.patternMatches("^[a-z0-9-_]+$"))
+                .importance(ConfigDef.Importance.LOW)
+                .build()
+        ).define(
+            ConfigKeyBuilder.of(SENTINEL_MASTER_ID_CONFIG, ConfigDef.Type.STRING)
+                .documentation(SENTINEL_MASTER_ID_DOC)
+                .defaultValue("")
+                .importance(ConfigDef.Importance.LOW)
+                .build()
         );
+  }
+
+  void commonUriSettings(RedisURI.Builder builder) {
+    builder.withClientName(this.clientName);
+    if (ClientMode.Standalone == this.clientMode) {
+      builder.withDatabase(this.database);
+    }
+    if (!Strings.isNullOrEmpty(this.password)) {
+      builder.withPassword(this.password);
+    }
+    builder.withSsl(this.sslEnabled);
   }
 
   public List<RedisURI> redisURIs() {
     List<RedisURI> result = new ArrayList<>();
 
-    for (HostAndPort host : this.hosts) {
+    if (ClientMode.Sentinel == this.clientMode) {
       RedisURI.Builder builder = RedisURI.builder();
-      builder.withHost(host.getHost());
-      builder.withPort(host.getPort());
-      builder.withDatabase(this.database);
-      if (!Strings.isNullOrEmpty(this.password)) {
-        builder.withPassword(this.password);
+      if (null != this.sentinelMasterId && !this.sentinelMasterId.isEmpty()) {
+        builder.withSentinelMasterId(this.sentinelMasterId);
       }
-      builder.withSsl(this.sslEnabled);
+      commonUriSettings(builder);
+      for (HostAndPort host : this.hosts) {
+        builder.withSentinel(host.getHost(), host.getPort());
+      }
       result.add(builder.build());
+    } else {
+      for (HostAndPort host : this.hosts) {
+        RedisURI.Builder builder = RedisURI.builder();
+        commonUriSettings(builder);
+        builder.withHost(host.getHost());
+        builder.withPort(host.getPort());
+        result.add(builder.build());
+      }
     }
+
 
     return result;
   }
 
   public enum ClientMode {
     Standalone,
-    Cluster
+    Cluster,
+    Sentinel
   }
 
   public enum RedisSslProvider {

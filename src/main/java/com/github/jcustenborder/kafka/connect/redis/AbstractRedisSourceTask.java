@@ -27,7 +27,7 @@ import java.util.List;
 import java.util.Map;
 
 public abstract class AbstractRedisSourceTask<CONFIG extends RedisSourceConnectorConfig> extends SourceTask {
-  private static final Logger log = LoggerFactory.getLogger(AbstractRedisCacheSinkTask.class);
+  private static final Logger log = LoggerFactory.getLogger(AbstractRedisSourceTask.class);
   protected CONFIG config;
   RedisSessionFactory sessionFactory = new RedisSessionFactoryImpl();
   protected SourceRecordDeque records;
@@ -36,6 +36,7 @@ public abstract class AbstractRedisSourceTask<CONFIG extends RedisSourceConnecto
 
   protected void setup(CONFIG config) {
     this.records = SourceRecordDequeBuilder.of()
+        .batchSize(1024)
         .build();
   }
 

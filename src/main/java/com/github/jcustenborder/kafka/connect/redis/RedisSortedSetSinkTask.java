@@ -34,16 +34,16 @@ public class RedisSortedSetSinkTask extends AbstractRedisCacheSinkTask<RedisSink
   @Override
   protected void operations(SinkOperations sinkOperations, Collection<SinkRecord> records) {
     for (SinkRecord record : records) {
-      log.trace("put() - Processing record " + formatLocation(record));
+      log.trace("put() - Processing record " + Utils.formatLocation(record));
       if (null == record.key()) {
         throw new DataException(
-            "The key for the record cannot be null. " + formatLocation(record)
+            "The key for the record cannot be null. " + Utils.formatLocation(record)
         );
       }
       final byte[] key = toBytes("key", record.key());
       if (null == key || key.length == 0) {
         throw new DataException(
-            "The key cannot be an empty byte array. " + formatLocation(record)
+            "The key cannot be an empty byte array. " + Utils.formatLocation(record)
         );
       }
 

@@ -34,8 +34,10 @@ public abstract class AbstractRedisPubSubSourceTask<CONFIG extends RedisSourceCo
   @Override
   public void stop() {
     try {
-      log.debug("stop() - Closing session.");
-      this.session.close();
+      if (null != this.session) {
+        log.debug("stop() - Closing session.");
+        this.session.close();
+      }
     } catch (Exception e) {
       log.error("Exception thrown while closing session.", e);
     }

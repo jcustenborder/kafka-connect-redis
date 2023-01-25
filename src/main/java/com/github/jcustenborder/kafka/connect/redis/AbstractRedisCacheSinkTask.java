@@ -19,6 +19,7 @@ import com.github.jcustenborder.kafka.connect.utils.VersionUtil;
 import com.github.jcustenborder.kafka.connect.utils.data.SinkOffsetState;
 import com.github.jcustenborder.kafka.connect.utils.jackson.ObjectMapperFactory;
 import io.lettuce.core.KeyValue;
+import io.lettuce.core.LettuceFutures;
 import io.lettuce.core.RedisFuture;
 import org.apache.kafka.clients.consumer.OffsetAndMetadata;
 import org.apache.kafka.common.TopicPartition;
@@ -40,6 +41,7 @@ import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.function.IntFunction;
 import java.util.stream.Collectors;
 
 public abstract class AbstractRedisCacheSinkTask<CONFIG extends RedisConnectorConfig> extends SinkTask {
@@ -57,15 +59,6 @@ public abstract class AbstractRedisCacheSinkTask<CONFIG extends RedisConnectorCo
     } catch (IOException e) {
       throw new DataException(e);
     }
-  }
-
-  static String formatLocation(SinkRecord record) {
-    return String.format(
-        "topic = %s partition = %s offset = %s",
-        record.topic(),
-        record.kafkaPartition(),
-        record.kafkaOffset()
-    );
   }
 
   private static String redisOffsetKey(TopicPartition topicPartition) {
@@ -90,6 +83,26 @@ public abstract class AbstractRedisCacheSinkTask<CONFIG extends RedisConnectorCo
           .map(AbstractRedisCacheSinkTask::redisOffsetKey)
           .map(s -> s.getBytes(this.config.charset))
           .toArray(byte[][]::new);
+
+      RedisFuture<byte[]>[] futures = assignment.stream()
+          .map(AbstractRedisCacheSinkTask::redisOffsetKey)
+          .map(s -> s.getBytes(this.config.charset))
+          .map(key -> this.session.asyncCommands().get(key))
+          .toArray((IntFunction<RedisFuture<byte[]>[]>) RedisFuture[]::new);
+
+      LettuceFutures.awaitAll(this.config.operationTimeoutMs, TimeUnit.MILLISECONDS, futures);
+
+      for (RedisFuture<byte[]> future : futures) {
+        try {
+          byte[] value = future.get();
+
+        } catch (InterruptedException e) {
+          throw new RuntimeException(e);
+        } catch (ExecutionException e) {
+          throw new RuntimeException(e);
+        }
+      }
+
 
       final RedisFuture<List<KeyValue<byte[], byte[]>>> partitionKeyFuture = this.session.asyncCommands().mget(partitionKeys);
       final List<SinkOffsetState> sinkOffsetStates;

@@ -25,6 +25,9 @@ import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
+import static com.github.jcustenborder.kafka.connect.redis.Utils.formatLocation;
+import static com.github.jcustenborder.kafka.connect.redis.Utils.logLocation;
+
 public class RedisMapSinkTask extends AbstractRedisCacheSinkTask<RedisSinkConnectorConfig> {
   private static final Logger log = LoggerFactory.getLogger(RedisMapSinkTask.class);
 
@@ -36,7 +39,8 @@ public class RedisMapSinkTask extends AbstractRedisCacheSinkTask<RedisSinkConnec
   @Override
   protected void operations(SinkOperations sinkOperations, Collection<SinkRecord> records) {
     for (SinkRecord record : records) {
-      log.trace("put() - Processing record " + formatLocation(record));
+      logLocation(log, record);
+
       if (null == record.key()) {
         throw new DataException(
             "The key for the record cannot be null. " + formatLocation(record)

@@ -20,6 +20,8 @@ import org.apache.kafka.common.config.ConfigDef;
 import java.util.Map;
 
 class RedisSourceConnectorConfig extends RedisConnectorConfig {
+
+
   public RedisSourceConnectorConfig(ConfigDef config, Map<?, ?> originals) {
     super(config, originals);
   }

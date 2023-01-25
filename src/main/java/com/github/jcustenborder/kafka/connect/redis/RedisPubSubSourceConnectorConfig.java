@@ -19,26 +19,50 @@ import com.github.jcustenborder.kafka.connect.utils.config.ConfigKeyBuilder;
 import com.github.jcustenborder.kafka.connect.utils.config.ConfigUtils;
 import org.apache.kafka.common.config.ConfigDef;
 
+import java.util.Collections;
 import java.util.Map;
 import java.util.Set;
 
 class RedisPubSubSourceConnectorConfig extends RedisSourceConnectorConfig {
 
-  public static final String REDIS_CHANNEL_CONF = "redis.channel";
-  static final String REDIS_CHANNEL_DOC = "redis.channel";
-  final Set<String> channels;
+  public static final String REDIS_CHANNELS_CONF = "redis.channels";
+  static final String REDIS_CHANNELS_DOC = "redis.channels";
+
+  public static final String REDIS_CHANNEL_PATTERNS_CONF = "redis.channel.patterns";
+  static final String REDIS_CHANNEL_PATTERNS_DOC = "redis.channel.patterns";
+
+  public static final String TOPIC_PREFIX_CONF = "redis.topic.prefix";
+  static final String TOPIC_PREFIX_DOC = "Prefix that will be added the beginning of the channel name";
+  public final Set<String> channels;
+  public final Set<String> channelPatterns;
+  public final String topicPrefix;
 
   public RedisPubSubSourceConnectorConfig(Map<?, ?> originals) {
     super(config(), originals);
-    this.channels = ConfigUtils.getSet(this, REDIS_CHANNEL_CONF);
+    this.channels = ConfigUtils.getSet(this, REDIS_CHANNELS_CONF);
+    this.channelPatterns = ConfigUtils.getSet(this, REDIS_CHANNEL_PATTERNS_CONF);
+    this.topicPrefix = getString(TOPIC_PREFIX_CONF);
   }
 
   public static ConfigDef config() {
     return RedisConnectorConfig.config()
         .define(
-            ConfigKeyBuilder.of(REDIS_CHANNEL_CONF, ConfigDef.Type.LIST)
-                .documentation(REDIS_CHANNEL_DOC)
+            ConfigKeyBuilder.of(REDIS_CHANNELS_CONF, ConfigDef.Type.LIST)
+                .documentation(REDIS_CHANNELS_DOC)
                 .importance(ConfigDef.Importance.HIGH)
+                .defaultValue(Collections.emptyList())
+                .build()
+        ).define(
+            ConfigKeyBuilder.of(TOPIC_PREFIX_CONF, ConfigDef.Type.STRING)
+                .documentation(TOPIC_PREFIX_DOC)
+                .importance(ConfigDef.Importance.MEDIUM)
+                .defaultValue("redis.")
+                .build()
+        ).define(
+            ConfigKeyBuilder.of(REDIS_CHANNEL_PATTERNS_CONF, ConfigDef.Type.LIST)
+                .documentation(REDIS_CHANNEL_PATTERNS_DOC)
+                .importance(ConfigDef.Importance.HIGH)
+                .defaultValue(Collections.emptyList())
                 .build()
         );
   }

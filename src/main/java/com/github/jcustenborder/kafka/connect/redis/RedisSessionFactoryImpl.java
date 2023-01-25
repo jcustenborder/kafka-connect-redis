@@ -24,11 +24,14 @@ import io.lettuce.core.SslOptions;
 import io.lettuce.core.api.StatefulConnection;
 import io.lettuce.core.api.StatefulRedisConnection;
 import io.lettuce.core.cluster.ClusterClientOptions;
+import io.lettuce.core.cluster.ClusterTopologyRefreshOptions;
 import io.lettuce.core.cluster.RedisClusterClient;
 import io.lettuce.core.cluster.api.StatefulRedisClusterConnection;
 import io.lettuce.core.cluster.api.async.RedisClusterAsyncCommands;
 import io.lettuce.core.codec.ByteArrayCodec;
 import io.lettuce.core.codec.RedisCodec;
+import io.lettuce.core.masterreplica.MasterReplica;
+import io.lettuce.core.masterreplica.StatefulRedisMasterReplicaConnection;
 import io.lettuce.core.pubsub.StatefulRedisPubSubConnection;
 import io.lettuce.core.pubsub.api.async.RedisPubSubAsyncCommands;
 import org.apache.kafka.common.utils.Time;
@@ -41,10 +44,10 @@ class RedisSessionFactoryImpl implements RedisSessionFactory {
   private static final Logger log = LoggerFactory.getLogger(RedisSessionFactoryImpl.class);
   Time time = Time.SYSTEM;
 
-  static <T extends AbstractRedisClient> T createClient(RedisConnectorConfig config, Class<T> cls) {
-    T client;
-    final SslOptions sslOptions;
+
+  static void setCommonOptions(RedisConnectorConfig config, ClientOptions.Builder clientOptionsBuilder) {
     if (config.sslEnabled) {
+      final SslOptions sslOptions;
       SslOptions.Builder builder = SslOptions.builder();
       switch (config.sslProvider) {
         case JDK:
@@ -77,8 +80,7 @@ class RedisSessionFactoryImpl implements RedisSessionFactory {
         }
       }
       sslOptions = builder.build();
-    } else {
-      sslOptions = null;
+      clientOptionsBuilder.sslOptions(sslOptions);
     }
 
     final SocketOptions socketOptions = SocketOptions.builder()
@@ -87,27 +89,59 @@ class RedisSessionFactoryImpl implements RedisSessionFactory {
         .keepAlive(config.keepAliveEnabled)
         .build();
 
+    clientOptionsBuilder.autoReconnect(config.autoReconnectEnabled)
+        .requestQueueSize(config.requestQueueSize)
+        .socketOptions(socketOptions);
+
+  }
+
+  static <T extends ClientOptions> T createClientOptions(RedisConnectorConfig config, Class<T> cls) {
     if (RedisConnectorConfig.ClientMode.Cluster == config.clientMode) {
-      ClusterClientOptions.Builder clientOptions = ClusterClientOptions.builder()
-          .requestQueueSize(config.requestQueueSize)
-          .autoReconnect(config.autoReconnectEnabled);
-      if (config.sslEnabled) {
-        clientOptions.sslOptions(sslOptions);
-      }
+      ClusterClientOptions.Builder clusterClientOptionsBuilder = ClusterClientOptions.builder();
+
+      setCommonOptions(config, clusterClientOptionsBuilder);
+      return (T) clusterClientOptionsBuilder.build();
+    } else if (RedisConnectorConfig.ClientMode.Standalone == config.clientMode) {
+      ClientOptions.Builder clientOptionsBuilder = ClientOptions.builder();
+      setCommonOptions(config, clientOptionsBuilder);
+      return (T) clientOptionsBuilder.build();
+    } else if (RedisConnectorConfig.ClientMode.Sentinel == config.clientMode) {
+      ClusterClientOptions.Builder clientOptionsBuilder = ClusterClientOptions.builder();
+      clientOptionsBuilder.topologyRefreshOptions(
+          ClusterTopologyRefreshOptions.builder()
+              .enableAllAdaptiveRefreshTriggers()
+              .enablePeriodicRefresh(true)
+              .dynamicRefreshSources(true)
+              .refreshPeriod(Duration.ofSeconds(30))
+              .build()
+      );
+      setCommonOptions(config, clientOptionsBuilder);
+      return (T) clientOptionsBuilder.build();
+    } else {
+      throw new UnsupportedOperationException(
+          String.format("%s is not supported", config.clientMode)
+      );
+    }
+  }
+
+  static <T extends AbstractRedisClient> T createClient(RedisConnectorConfig config, Class<T> cls) {
+    T client;
+
+    if (RedisConnectorConfig.ClientMode.Cluster == config.clientMode) {
+      final ClusterClientOptions clientOptions = createClientOptions(config, ClusterClientOptions.class);
       final RedisClusterClient clusterClient = RedisClusterClient.create(config.redisURIs());
-      clusterClient.setOptions(clientOptions.build());
+      clusterClient.setOptions(clientOptions);
       client = (T) clusterClient;
     } else if (RedisConnectorConfig.ClientMode.Standalone == config.clientMode) {
-      final ClientOptions.Builder clientOptions = ClientOptions.builder()
-          .socketOptions(socketOptions)
-          .requestQueueSize(config.requestQueueSize)
-          .autoReconnect(config.autoReconnectEnabled);
-      if (config.sslEnabled) {
-        clientOptions.sslOptions(sslOptions);
-      }
+      final ClientOptions clientOptions = createClientOptions(config, ClientOptions.class);
       final RedisClient standaloneClient = RedisClient.create(config.redisURIs().get(0));
-      standaloneClient.setOptions(clientOptions.build());
+      standaloneClient.setOptions(clientOptions);
       client = (T) standaloneClient;
+    } else if (RedisConnectorConfig.ClientMode.Sentinel == config.clientMode) {
+      final ClusterClientOptions clientOptions = createClientOptions(config, ClusterClientOptions.class);
+      final RedisClient sentinelClient = RedisClient.create(config.redisURIs().get(0));
+      sentinelClient.setOptions(clientOptions);
+      client = (T) sentinelClient;
     } else {
       throw new UnsupportedOperationException(
           String.format("%s is not supported", config.clientMode)
@@ -168,7 +202,7 @@ class RedisSessionFactoryImpl implements RedisSessionFactory {
         if (attempts == config.maxAttempts) {
           throw ex;
         } else {
-          log.warn("Exception thrown connecting to redis. Waiting {} ms to try again.", config.retryDelay);
+          log.warn("Exception thrown connecting to redis. Waiting {} ms to try again.", config.retryDelay, ex);
           this.time.sleep(config.retryDelay);
         }
       }
@@ -274,6 +308,12 @@ class RedisSessionFactoryImpl implements RedisSessionFactory {
         client = standaloneClient;
         connection = standaloneConnection;
         asyncCommands = standaloneConnection.async();
+      } else if (RedisConnectorConfig.ClientMode.Sentinel == config.clientMode) {
+        final RedisClient sentinelClient = createClient(config, RedisClient.class);
+        final StatefulRedisMasterReplicaConnection<K, V> sentinelConnection = MasterReplica.connect(sentinelClient, codec, config.redisURIs().get(0));
+        client = sentinelClient;
+        connection = sentinelConnection;
+        asyncCommands = sentinelConnection.async();
       } else {
         throw new UnsupportedOperationException(
             String.format("%s is not supported", config.clientMode)

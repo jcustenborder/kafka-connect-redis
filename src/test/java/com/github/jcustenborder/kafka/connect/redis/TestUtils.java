@@ -17,6 +17,18 @@ package com.github.jcustenborder.kafka.connect.redis;
 
 import com.google.common.base.Charsets;
 import io.lettuce.core.KeyValue;
+import org.apache.kafka.connect.header.Header;
+import org.apache.kafka.connect.source.SourceRecord;
+
+import java.nio.charset.StandardCharsets;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.function.BiConsumer;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.fail;
 
 public class TestUtils {
   public static KeyValue<String, String> toString(KeyValue<byte[], byte[]> input) {
@@ -24,5 +36,43 @@ public class TestUtils {
         new String(input.getKey(), Charsets.UTF_8),
         new String(input.getValue(), Charsets.UTF_8)
     );
+  }
+
+  public static <T> void assertRecords(List<T> input, List<SourceRecord> records, BiConsumer<T, SourceRecord> consumer) {
+    assertNotNull(records, "records should not be null");
+    assertEquals(input.size(), records.size(), "records.size() does not match");
+    for (int i = 0; i < input.size(); i++) {
+      final T expected = input.get(i);
+      final SourceRecord record = records.get(i);
+      consumer.accept(expected, record);
+    }
+  }
+
+  public static void assertHeader(SourceRecord record, String name, String expected) {
+    Header header = record.headers().lastWithName(name);
+    assertNotNull(header, String.format("Header '%s' was not found", name));
+    switch (header.schema().type()) {
+      case STRING:
+        assertEquals(expected, header.value(), String.format("Header '%s' does not match.", name));
+        break;
+      case BYTES:
+        assertEquals(expected, new String((byte[]) header.value(), StandardCharsets.UTF_8), String.format("Header '%s' does not match.", name));
+        break;
+      default:
+        fail(String.format("Header '%s' was unexpected schema type of {}.", name, header.schema().type()));
+        break;
+    }
+  }
+
+  public static Map<String, String> mapOf(String... args) {
+    assertEquals(0, args.length % 2, "Even number of arguments must be supplied");
+    Map<String, String> result = new LinkedHashMap<>();
+    for (int i = 0; i < args.length; i += 2) {
+      result.put(
+          args[i],
+          args[i + 1]
+      );
+    }
+    return result;
   }
 }

@@ -15,5 +15,23 @@
  */
 package com.github.jcustenborder.kafka.connect.redis;
 
-public class RedisPubSubSinkConnector {
+import org.apache.kafka.connect.sink.SinkRecord;
+import org.slf4j.Logger;
+
+
+class Utils {
+  public static void logLocation(Logger log, SinkRecord record) {
+    if (log.isTraceEnabled()) {
+      log.trace("put() - Processing record " + formatLocation(record));
+    }
+  }
+
+  static String formatLocation(SinkRecord record) {
+    return String.format(
+        "topic = %s partition = %s offset = %s",
+        record.topic(),
+        record.kafkaPartition(),
+        record.kafkaOffset()
+    );
+  }
 }

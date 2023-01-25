@@ -52,12 +52,12 @@ public class RedisGeoSinkTask extends AbstractRedisCacheSinkTask<RedisSinkConnec
   @Override
   protected void operations(SinkOperations sinkOperations, Collection<SinkRecord> records) {
     for (SinkRecord record : records) {
-      log.trace("put() - Processing record " + formatLocation(record));
+      log.trace("put() - Processing record " + Utils.formatLocation(record));
 
 
       if (null == record.key()) {
         throw new DataException(
-            "The key for the record cannot be null. " + formatLocation(record)
+            "The key for the record cannot be null. " + Utils.formatLocation(record)
         );
       }
       SinkOperation.GeoSetKey key;
@@ -79,7 +79,7 @@ public class RedisGeoSinkTask extends AbstractRedisCacheSinkTask<RedisSinkConnec
         sinkOperations.geoadd(key, location);
       } else {
         throw new DataException(
-            "The value for the record must be a Struct or Map." + formatLocation(record)
+            "The value for the record must be a Struct or Map." + Utils.formatLocation(record)
         );
       }
     }

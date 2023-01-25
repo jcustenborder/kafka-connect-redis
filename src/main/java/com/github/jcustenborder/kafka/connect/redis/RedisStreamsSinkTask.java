@@ -36,7 +36,7 @@ public class RedisStreamsSinkTask extends AbstractRedisCacheSinkTask<RedisSinkCo
   @Override
   protected void operations(SinkOperations sinkOperations, Collection<SinkRecord> records) {
     for (SinkRecord record : records) {
-      log.trace("put() - Processing record " + formatLocation(record));
+      log.trace("put() - Processing record " + Utils.formatLocation(record));
       if (null == record.value()) {
 
       } else if (record.value() instanceof Struct) {
@@ -60,7 +60,7 @@ public class RedisStreamsSinkTask extends AbstractRedisCacheSinkTask<RedisSinkCo
         sinkOperations.xadd(record.topic(), mapValues);
       } else {
         throw new DataException(
-            "The value for the record must be a Struct or Map." + formatLocation(record)
+            "The value for the record must be a Struct or Map." + Utils.formatLocation(record)
         );
       }
     }

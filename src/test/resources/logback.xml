@@ -7,6 +7,7 @@
     <root level="INFO">
         <appender-ref ref="STDOUT" />
     </root>
-    <logger name="com.github.jcustenborder.kafka.connect.redis" level="TRACE" />
+    <logger name="com.github.jcustenborder.kafka.connect.redis" level="DEBUG" />
+    <logger name="io.lettuce" level="INFO" />
     <logger name="org.reflections.Reflections" level="ERROR" />
 </configuration>

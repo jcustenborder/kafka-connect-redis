@@ -61,11 +61,17 @@
         <dependency>
             <groupId>io.lettuce</groupId>
             <artifactId>lettuce-core</artifactId>
-            <version>5.2.1.RELEASE</version>
+            <version>6.2.2.RELEASE</version>
         </dependency>
         <dependency>
             <groupId>com.github.jcustenborder.kafka.connect</groupId>
             <artifactId>connect-utils-jackson</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.opencsv</groupId>
+            <artifactId>opencsv</artifactId>
+            <version>5.7.1</version>
+            <scope>test</scope>
         </dependency>
     </dependencies>
     <build>

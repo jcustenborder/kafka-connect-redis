@@ -28,6 +28,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 public class RedisSinkConnectorConfigTest {
@@ -171,14 +172,14 @@ public class RedisSinkConnectorConfigTest {
   @Test
   public void testDefaultAutoReconnectEnabledConfig() {
     RedisSinkConnectorConfig config = new RedisSinkConnectorConfig(props);
-    assertEquals(config.autoReconnectEnabled, true);
+    assertTrue(config.autoReconnectEnabled);
   }
 
   @Test
   public void testSetAutoReconnectEnabledConfig() {
     props.put(RedisSinkConnectorConfig.AUTO_RECONNECT_ENABLED_CONFIG, "false");
     RedisSinkConnectorConfig config = new RedisSinkConnectorConfig(props);
-    assertEquals(config.autoReconnectEnabled, false);
+    assertFalse(config.autoReconnectEnabled);
   }
 
   @Test
@@ -213,14 +214,14 @@ public class RedisSinkConnectorConfigTest {
   @Test
   public void testDefaultSocketTCPNoDelayConfig() {
     RedisSinkConnectorConfig config = new RedisSinkConnectorConfig(props);
-    assertEquals(config.tcpNoDelay, true);
+    assertTrue(config.tcpNoDelay);
   }
 
   @Test
   public void testSetSocketTCPNoDelayConfig() {
     props.put(RedisSinkConnectorConfig.SOCKET_TCP_NO_DELAY_CONFIG, "false");
     RedisSinkConnectorConfig config = new RedisSinkConnectorConfig(props);
-    assertEquals(config.tcpNoDelay, false);
+    assertFalse(config.tcpNoDelay);
   }
 
   @Test
@@ -234,14 +235,14 @@ public class RedisSinkConnectorConfigTest {
   @Test
   public void testDefaultSocketKeepAliveConfig() {
     RedisSinkConnectorConfig config = new RedisSinkConnectorConfig(props);
-    assertEquals(config.keepAliveEnabled, false);
+    assertFalse(config.keepAliveEnabled);
   }
 
   @Test
   public void testSetSocketKeepAliveConfig() {
     props.put(RedisSinkConnectorConfig.SOCKET_KEEP_ALIVE_CONFIG, "true");
     RedisSinkConnectorConfig config = new RedisSinkConnectorConfig(props);
-    assertEquals(config.keepAliveEnabled, true);
+    assertTrue(config.keepAliveEnabled);
   }
 
   @Test

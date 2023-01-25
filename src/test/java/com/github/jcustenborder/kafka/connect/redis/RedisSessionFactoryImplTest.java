@@ -48,7 +48,6 @@ public class RedisSessionFactoryImplTest {
   public void foo() {
 
 
-
   }
 
 }

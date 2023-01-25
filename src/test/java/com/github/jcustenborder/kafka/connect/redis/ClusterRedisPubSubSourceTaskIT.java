@@ -2,17 +2,12 @@ package com.github.jcustenborder.kafka.connect.redis;
 
 import com.github.jcustenborder.docker.junit5.Compose;
 import com.github.jcustenborder.docker.junit5.DockerContainer;
-import com.github.jcustenborder.docker.junit5.Port;
 import com.github.jcustenborder.kafka.connect.redis.healthchecks.RedisClusterHealthCheck;
 import com.palantir.docker.compose.connection.Container;
-import com.sun.tools.javac.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.net.InetSocketAddress;
-import java.util.LinkedHashSet;
-import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 

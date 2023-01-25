@@ -2,15 +2,11 @@ package com.github.jcustenborder.kafka.connect.redis;
 
 import com.github.jcustenborder.docker.junit5.Compose;
 import com.github.jcustenborder.docker.junit5.DockerContainer;
-import com.github.jcustenborder.kafka.connect.redis.healthchecks.RedisClusterHealthCheck;
 import com.github.jcustenborder.kafka.connect.redis.healthchecks.RedisSentinelHealthCheck;
 import com.palantir.docker.compose.connection.Container;
 import org.junit.jupiter.api.BeforeEach;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import java.util.stream.Collectors;
-import java.util.stream.IntStream;
 
 @Compose(
     dockerComposePath = "src/test/resources/docker/sentinel/docker-compose.yml",

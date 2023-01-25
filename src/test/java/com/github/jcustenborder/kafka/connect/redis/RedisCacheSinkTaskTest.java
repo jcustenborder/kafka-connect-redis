@@ -31,6 +31,7 @@ import org.mockito.InOrder;
 import org.mockito.Mockito;
 
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
@@ -98,7 +99,7 @@ public class RedisCacheSinkTaskTest {
   public void nonByteOrStringKey() {
     DataException exception = assertThrows(DataException.class, () -> {
       this.task.put(
-          Arrays.asList(
+          Collections.singletonList(
               write("topic",
                   new SchemaAndValue(Schema.INT32_SCHEMA, 1),
                   new SchemaAndValue(Schema.INT32_SCHEMA, 1)
@@ -115,7 +116,7 @@ public class RedisCacheSinkTaskTest {
   public void nonByteOrStringValue() {
     DataException exception = assertThrows(DataException.class, () -> {
       this.task.put(
-          Arrays.asList(
+          Collections.singletonList(
               write("topic",
                   new SchemaAndValue(Schema.STRING_SCHEMA, "test"),
                   new SchemaAndValue(Schema.INT32_SCHEMA, 1)

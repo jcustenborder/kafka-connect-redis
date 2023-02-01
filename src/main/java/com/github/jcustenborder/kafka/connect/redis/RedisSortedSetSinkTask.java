@@ -32,7 +32,7 @@ public class RedisSortedSetSinkTask extends AbstractRedisCacheSinkTask<RedisSink
   }
 
   @Override
-  protected void operations(SinkOperations sinkOperations, Collection<SinkRecord> records) {
+  public void put(Collection<SinkRecord> records) {
     for (SinkRecord record : records) {
       log.trace("put() - Processing record " + Utils.formatLocation(record));
       if (null == record.key()) {
@@ -51,7 +51,7 @@ public class RedisSortedSetSinkTask extends AbstractRedisCacheSinkTask<RedisSink
       if (null == value) {
 //        sinkOperations.srem(key);
       } else {
-        sinkOperations.sadd(key, value);
+//        sinkOperations.sadd(key, value);
       }
     }
   }

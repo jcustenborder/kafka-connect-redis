@@ -8,7 +8,7 @@ import com.palantir.docker.compose.connection.Cluster;
     dockerComposePath = "src/test/resources/docker/standard/docker-compose.yml",
     clusterHealthCheck = RedisStandardHealthCheck.class
 )
-public class StandardRedisPubSubSourceTaskIT extends AbstractTaskRedisPubSubSourceTaskIT {
+public class StandardRedisCacheSinkTaskIT extends AbstractTaskRedisCacheSinkTaskIT {
   @Override
   protected ConnectionHelper createConnectionHelper(Cluster cluster) {
     return new ConnectionHelper.Standard(cluster);

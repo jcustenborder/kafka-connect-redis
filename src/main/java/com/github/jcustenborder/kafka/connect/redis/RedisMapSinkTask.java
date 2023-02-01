@@ -37,7 +37,7 @@ public class RedisMapSinkTask extends AbstractRedisCacheSinkTask<RedisSinkConnec
   }
 
   @Override
-  protected void operations(SinkOperations sinkOperations, Collection<SinkRecord> records) {
+  public void put(Collection<SinkRecord> records) {
     for (SinkRecord record : records) {
       logLocation(log, record);
 
@@ -54,7 +54,7 @@ public class RedisMapSinkTask extends AbstractRedisCacheSinkTask<RedisSinkConnec
       }
 
       if (null == record.value()) {
-        sinkOperations.hdel(key);
+//        sinkOperations.hdel(key);
       } else if (record.value() instanceof Struct) {
         Struct struct = (Struct) record.value();
         Map<byte[], byte[]> mapValues = new LinkedHashMap<>();
@@ -64,7 +64,7 @@ public class RedisMapSinkTask extends AbstractRedisCacheSinkTask<RedisSinkConnec
           byte[] fieldValue = toBytes("field.value", v);
           mapValues.put(fieldKey, fieldValue);
         });
-        sinkOperations.hset(key, mapValues);
+//        sinkOperations.hset(key, mapValues);
       } else if (record.value() instanceof Map) {
         Map map = (Map) record.value();
         Map<byte[], byte[]> mapValues = new LinkedHashMap<>();
@@ -73,7 +73,7 @@ public class RedisMapSinkTask extends AbstractRedisCacheSinkTask<RedisSinkConnec
           byte[] fieldValue = toBytes("field.value", v);
           mapValues.put(fieldKey, fieldValue);
         });
-        sinkOperations.hset(key, mapValues);
+//        sinkOperations.hset(key, mapValues);
       } else {
         throw new DataException(
             "The value for the record must be a Struct or Map." + formatLocation(record)

@@ -98,14 +98,14 @@ public class TestLocation {
       int partition,
       AtomicLong offset
   ) {
-    Struct key = new Struct(KEY_SCHEMA)
-        .put("key", this.region)
-        .put("member", this.ident);
+//    Struct key = new Struct(KEY_SCHEMA)
+//        .put("key", this.region)
+//        .put("member", this.ident);
     Struct value = new Struct(VALUE_SCHEMA)
         .put("latitude", this.latitude)
         .put("longitude", this.longitude);
 
-    return new SinkRecord(topic, partition, key.schema(), key, value.schema(), value, offset.incrementAndGet());
+    return new SinkRecord(topic, partition, Schema.STRING_SCHEMA, this.ident, value.schema(), value, offset.incrementAndGet());
   }
 
   public SinkRecord structDelete(
@@ -113,10 +113,6 @@ public class TestLocation {
       int partition,
       AtomicLong offset
   ) {
-    Struct key = new Struct(KEY_SCHEMA)
-        .put("key", this.region)
-        .put("member", this.ident);
-
-    return new SinkRecord(topic, partition, key.schema(), key, null, null, offset.incrementAndGet());
+    return new SinkRecord(topic, partition, Schema.STRING_SCHEMA, this.ident, null, null, offset.incrementAndGet());
   }
 }

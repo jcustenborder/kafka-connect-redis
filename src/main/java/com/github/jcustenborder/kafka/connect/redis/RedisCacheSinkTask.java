@@ -15,13 +15,15 @@
  */
 package com.github.jcustenborder.kafka.connect.redis;
 
-import org.apache.kafka.connect.errors.DataException;
 import org.apache.kafka.connect.sink.SinkRecord;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.Collection;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
+
+import static com.github.jcustenborder.kafka.connect.redis.Utils.logLocation;
 
 public class RedisCacheSinkTask extends AbstractRedisCacheSinkTask<RedisSinkConnectorConfig> {
   private static final Logger log = LoggerFactory.getLogger(RedisCacheSinkTask.class);
@@ -32,27 +34,27 @@ public class RedisCacheSinkTask extends AbstractRedisCacheSinkTask<RedisSinkConn
   }
 
   @Override
-  protected void operations(SinkOperations sinkOperations, Collection<SinkRecord> records) {
-    for (SinkRecord record : records) {
-      log.trace("put() - Processing record " + Utils.formatLocation(record));
-      if (null == record.key()) {
-        throw new DataException(
-            "The key for the record cannot be null. " + Utils.formatLocation(record)
-        );
-      }
-      final byte[] key = toBytes("key", record.key());
-      if (null == key || key.length == 0) {
-        throw new DataException(
-            "The key cannot be an empty byte array. " + Utils.formatLocation(record)
-        );
-      }
+  public void put(Collection<SinkRecord> records) {
+    log.debug("put() - Processing {} record(s)", records.size());
 
-      final byte[] value = toBytes("value", record.value());
-      if (null == value) {
-        sinkOperations.del(key);
+    for (SinkRecord record : records) {
+      logLocation(log, record);
+      byte[] key = toBytes("key", record.key());
+      byte[] value = toBytes("value", record.value());
+
+      CompletableFuture<?> future;
+
+      if (null != value) {
+        future = this.session.asyncCommands().set(key, value)
+            .exceptionally(exceptionally(record))
+            .toCompletableFuture();
       } else {
-        sinkOperations.set(key, value);
+        future = this.session.asyncCommands().del(key)
+            .exceptionally(exceptionally(record))
+            .toCompletableFuture();
       }
+      this.futures.add(future);
     }
+    log.debug("put() - Added {} future(s)", this.futures.size());
   }
 }

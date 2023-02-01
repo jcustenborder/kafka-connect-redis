@@ -43,8 +43,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public abstract class AbstractRedisPubSubSourceTaskIT extends AbstractIntegrationTest<RedisPubSubSourceTask> {
-  private static final Logger log = LoggerFactory.getLogger(AbstractRedisPubSubSourceTaskIT.class);
+public abstract class AbstractTaskRedisPubSubSourceTaskIT extends AbstractSourceTaskIntegrationTest<RedisPubSubSourceTask> {
+  private static final Logger log = LoggerFactory.getLogger(AbstractTaskRedisPubSubSourceTaskIT.class);
 
   @Override
   protected RedisPubSubSourceTask createTask() {

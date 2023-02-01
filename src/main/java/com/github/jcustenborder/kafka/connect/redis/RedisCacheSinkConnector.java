@@ -18,6 +18,8 @@ package com.github.jcustenborder.kafka.connect.redis;
 import com.github.jcustenborder.kafka.connect.utils.config.Description;
 import com.github.jcustenborder.kafka.connect.utils.config.DocumentationImportant;
 import com.github.jcustenborder.kafka.connect.utils.config.DocumentationNote;
+import com.github.jcustenborder.kafka.connect.utils.config.DocumentationSection;
+import com.github.jcustenborder.kafka.connect.utils.config.DocumentationSections;
 import com.github.jcustenborder.kafka.connect.utils.config.Title;
 import org.apache.kafka.common.config.ConfigDef;
 import org.apache.kafka.connect.connector.Task;
@@ -35,6 +37,13 @@ import java.util.Map;
     "before it is written to Redis.")
 @DocumentationNote("This connector supports deletes. If the record stored in Kafka has a null value, " +
     "this connector will send a delete with the corresponding key to Redis.")
+@DocumentationSections(
+    sections = {
+        @DocumentationSection(title = "Additional Data Formats", text = "You might be asking, why does this connector only support the " +
+            "StringConverter and the ByteArrayConverter. I really need the data to be JSON or <insert format name here>. " +
+            "")
+    }
+)
 public class RedisCacheSinkConnector extends AbstractRedisSinkConnector<RedisSinkConnectorConfig> {
   @Override
   protected RedisSinkConnectorConfig config(Map<String, String> settings) {

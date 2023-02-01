@@ -15,14 +15,19 @@
  */
 package com.github.jcustenborder.kafka.connect.redis;
 
+import io.lettuce.core.GeoCoordinates;
+import io.lettuce.core.GeoValue;
 import org.apache.kafka.connect.data.Struct;
 import org.apache.kafka.connect.errors.DataException;
 import org.apache.kafka.connect.sink.SinkRecord;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.nio.charset.StandardCharsets;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
 
 public class RedisGeoSinkTask extends AbstractRedisCacheSinkTask<RedisSinkConnectorConfig> {
   private static final Logger log = LoggerFactory.getLogger(RedisGeoSinkTask.class);
@@ -32,56 +37,104 @@ public class RedisGeoSinkTask extends AbstractRedisCacheSinkTask<RedisSinkConnec
     return new RedisSinkConnectorConfig(settings);
   }
 
-  SinkOperation.GeoSetKey fromStructKey(Struct struct) {
-    byte[] key;
-    byte[] member;
-    Object fieldValue = struct.get("key");
-    key = toBytes("struct.key", fieldValue);
-    fieldValue = struct.get("member");
-    member = toBytes("struct.member", fieldValue);
-    return SinkOperation.GeoSetKey.of(key, member);
+//  SinkOperation.GeoSetKey fromStructKey(Struct struct) {
+//    byte[] key;
+//    byte[] member;
+//    Object fieldValue = struct.get("key");
+//    key = toBytes("struct.key", fieldValue);
+//    fieldValue = struct.get("member");
+//    member = toBytes("struct.member", fieldValue);
+//    return SinkOperation.GeoSetKey.of(key, member);
+//  }
+//
+//  SinkOperation.Location fromStructValue(Struct struct, byte[] member) {
+//    Number latitude = (Number) struct.get("latitude");
+//    Number longitude = (Number) struct.get("longitude");
+//    return SinkOperation.Location.of(longitude.doubleValue(), latitude.doubleValue(), member);
+//  }
+
+  Number number(Object value) {
+    if (value instanceof Number) {
+      return (Number) value;
+    } else if (value instanceof String) {
+      return Double.parseDouble(value.toString());
+    } else if (null == value) {
+      throw new DataException("value cannot be null");
+    } else {
+      throw new DataException(
+          String.format("Could not convert '%s' to double", value.getClass().getName())
+      );
+    }
   }
 
-  SinkOperation.Location fromStructValue(Struct struct, byte[] member) {
-    Number latitude = (Number) struct.get("latitude");
-    Number longitude = (Number) struct.get("longitude");
-    return SinkOperation.Location.of(longitude.doubleValue(), latitude.doubleValue(), member);
+  Number getNumber(String key, Map values) {
+    Object value = values.get(key);
+    try {
+      return number(value);
+    } catch (DataException ex) {
+      throw new DataException(
+          String.format("Could not convert '%s' to double", key),
+          ex
+      );
+    }
   }
 
+  Number getNumber(String key, Struct values) {
+    Object value = values.get(key);
+    try {
+      return number(value);
+    } catch (DataException ex) {
+      throw new DataException(
+          String.format("Could not convert '%s' to double", key),
+          ex
+      );
+    }
+  }
 
   @Override
-  protected void operations(SinkOperations sinkOperations, Collection<SinkRecord> records) {
-    for (SinkRecord record : records) {
-      log.trace("put() - Processing record " + Utils.formatLocation(record));
+  public void put(Collection<SinkRecord> records) {
+    Map<String, byte[]> topicToByte = new HashMap<>();
 
+    for (SinkRecord record : records) {
+      final byte[] topicKey = topicToByte.computeIfAbsent(record.topic(), t -> t.getBytes(StandardCharsets.UTF_8));
+      log.trace("put() - Processing record " + Utils.formatLocation(record));
 
       if (null == record.key()) {
         throw new DataException(
             "The key for the record cannot be null. " + Utils.formatLocation(record)
         );
       }
-      SinkOperation.GeoSetKey key;
+      byte[] key = toBytes("key", record.key());
 
-      if (record.key() instanceof Struct) {
-        key = fromStructKey((Struct) record.key());
-      } else if (record.key() instanceof Map) {
-        throw new UnsupportedOperationException();
-      } else {
-        throw new UnsupportedOperationException();
-      }
-
+      CompletableFuture<?> future;
 
       if (null == record.value()) {
-        sinkOperations.zrem(key);
-      } else if (record.value() instanceof Struct) {
-        Struct struct = (Struct) record.value();
-        SinkOperation.Location location = fromStructValue(struct, key.member);
-        sinkOperations.geoadd(key, location);
+        future = this.session.asyncCommands().zrem(topicKey, key)
+            .exceptionally(exceptionally(record))
+            .toCompletableFuture();
       } else {
-        throw new DataException(
-            "The value for the record must be a Struct or Map." + Utils.formatLocation(record)
-        );
+        Number latitude, longitude;
+
+        if (record.value() instanceof Struct) {
+          Struct struct = (Struct) record.value();
+          latitude = getNumber("latitude", struct);
+          longitude = getNumber("longitude", struct);
+        } else if (record.value() instanceof Map) {
+          Map map = (Map) record.value();
+          latitude = getNumber("latitude", map);
+          longitude = getNumber("longitude", map);
+        } else {
+          throw new UnsupportedOperationException();
+        }
+
+        GeoCoordinates coordinates = GeoCoordinates.create(latitude, longitude);
+        GeoValue<byte[]> value = GeoValue.just(coordinates, key);
+
+        future = this.session.asyncCommands().geoadd(topicKey, value)
+            .exceptionally(exceptionally(record))
+            .toCompletableFuture();
       }
+      this.futures.add(future);
     }
   }
 }

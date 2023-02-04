@@ -31,7 +31,7 @@ import java.util.Map;
     "Value: `{\"latitude\":\"30.2672\", \"longitude\":\"97.7431\"}` ")
 @DocumentationNote("This connector supports deletes. If the record stored in Kafka has a null value, " +
     "this connector will send a delete with the corresponding key to Redis.")
-public class RedisMapSinkConnector extends AbstractRedisSinkConnector<RedisSinkConnectorConfig> {
+public class RedisMapSinkConnector extends AbstractRedisSinkConnector<RedisCacheSinkConnectorConfig> {
   @Override
   public Class<? extends Task> taskClass() {
     return RedisMapSinkTask.class;
@@ -39,11 +39,11 @@ public class RedisMapSinkConnector extends AbstractRedisSinkConnector<RedisSinkC
 
   @Override
   public ConfigDef config() {
-    return RedisSinkConnectorConfig.config();
+    return RedisCacheSinkConnectorConfig.config();
   }
 
   @Override
-  protected RedisSinkConnectorConfig config(Map<String, String> settings) {
-    return new RedisSinkConnectorConfig(settings);
+  protected RedisCacheSinkConnectorConfig config(Map<String, String> settings) {
+    return new RedisCacheSinkConnectorConfig(settings);
   }
 }

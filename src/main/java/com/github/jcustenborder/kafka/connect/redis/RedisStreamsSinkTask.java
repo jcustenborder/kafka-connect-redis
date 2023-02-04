@@ -21,6 +21,7 @@ import org.apache.kafka.connect.sink.SinkRecord;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.nio.charset.StandardCharsets;
 import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -30,7 +31,7 @@ public class RedisStreamsSinkTask extends AbstractRedisCacheSinkTask<RedisSinkCo
 
   @Override
   protected RedisSinkConnectorConfig config(Map<String, String> settings) {
-    return new RedisSinkConnectorConfig(settings);
+    return new RedisCacheSinkConnectorConfig(settings);
   }
 
   @Override
@@ -48,7 +49,13 @@ public class RedisStreamsSinkTask extends AbstractRedisCacheSinkTask<RedisSinkCo
           byte[] fieldValue = toBytes("field.value", v);
           mapValues.put(fieldKey, fieldValue);
         });
-//        sinkOperations.xadd(record.topic(), mapValues);
+        this.futures.add(
+            this.session.asyncCommands().xadd(
+                    record.topic().getBytes(StandardCharsets.UTF_8),
+                    mapValues
+                ).exceptionally(exceptionally(record))
+                .toCompletableFuture()
+        );
       } else if (record.value() instanceof Map) {
         Map map = (Map) record.value();
         Map<byte[], byte[]> mapValues = new LinkedHashMap<>();
@@ -57,7 +64,13 @@ public class RedisStreamsSinkTask extends AbstractRedisCacheSinkTask<RedisSinkCo
           byte[] fieldValue = toBytes("field.value", v);
           mapValues.put(fieldKey, fieldValue);
         });
-//        sinkOperations.xadd(record.topic(), mapValues);
+        this.futures.add(
+            this.session.asyncCommands().xadd(
+                    record.topic().getBytes(StandardCharsets.UTF_8),
+                    mapValues
+                ).exceptionally(exceptionally(record))
+                .toCompletableFuture()
+        );
       } else {
         throw new DataException(
             "The value for the record must be a Struct or Map." + Utils.formatLocation(record)

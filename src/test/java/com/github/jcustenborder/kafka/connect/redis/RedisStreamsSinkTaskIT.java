@@ -16,28 +16,27 @@
 package com.github.jcustenborder.kafka.connect.redis;
 
 import com.github.jcustenborder.docker.junit5.Compose;
-import com.github.jcustenborder.docker.junit5.Port;
+import com.github.jcustenborder.kafka.connect.redis.healthchecks.RedisClusterHealthCheck;
+import com.github.jcustenborder.kafka.connect.redis.healthchecks.RedisSentinelHealthCheck;
+import com.github.jcustenborder.kafka.connect.redis.healthchecks.RedisStandardHealthCheck;
 import com.google.common.base.Charsets;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.ImmutableSet;
+import com.palantir.docker.compose.connection.Cluster;
 import io.lettuce.core.KeyValue;
 import io.lettuce.core.StreamMessage;
 import io.lettuce.core.XReadArgs;
+import org.apache.kafka.clients.consumer.OffsetAndMetadata;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.connect.data.Schema;
 import org.apache.kafka.connect.data.SchemaBuilder;
 import org.apache.kafka.connect.data.Struct;
 import org.apache.kafka.connect.sink.SinkRecord;
-import org.apache.kafka.connect.sink.SinkTaskContext;
-import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
-import java.net.InetSocketAddress;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
@@ -47,15 +46,12 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+import static com.github.jcustenborder.kafka.connect.redis.TestUtils.offsets;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
-@Compose(
-    dockerComposePath = "src/test/resources/docker-compose.yml"
-)
-public class RedisStreamsSinkTaskIT {
+public abstract class RedisStreamsSinkTaskIT extends AbstractSinkTaskIntegrationTest<RedisStreamsSinkTask> {
   static final Schema VALUE_SCHEMA = SchemaBuilder.struct()
       .field("ident", Schema.STRING_SCHEMA)
       .field("region", Schema.STRING_SCHEMA)
@@ -63,36 +59,22 @@ public class RedisStreamsSinkTaskIT {
       .field("longitude", Schema.STRING_SCHEMA)
       .build();
   private static final Logger log = LoggerFactory.getLogger(RedisStreamsSinkTaskIT.class);
-  RedisStreamsSinkTask task;
 
-  @BeforeEach
-  public void before() {
-    this.task = new RedisStreamsSinkTask();
+  @Override
+  protected RedisStreamsSinkTask createTask() {
+    return new RedisStreamsSinkTask();
   }
 
   @Test
-  public void emptyAssignment(@Port(container = "redis", internalPort = 6379) InetSocketAddress address) throws ExecutionException, InterruptedException {
-    log.info("address = {}", address);
-    final String topic = "putWrite";
-    SinkTaskContext context = mock(SinkTaskContext.class);
-    when(context.assignment()).thenReturn(ImmutableSet.of());
-    this.task.initialize(context);
-    this.task.start(
-        ImmutableMap.of(RedisSinkConnectorConfig.HOSTS_CONFIG, String.format("%s:%s", address.getHostString(), address.getPort()))
-    );
+  public void emptyAssignment() throws ExecutionException, InterruptedException {
+    this.task.start(this.settings);
   }
 
-  @Test
-  public void putEmpty(@Port(container = "redis", internalPort = 6379) InetSocketAddress address) throws ExecutionException, InterruptedException {
-    log.info("address = {}", address);
-    final String topic = "putWrite";
-    SinkTaskContext context = mock(SinkTaskContext.class);
-    when(context.assignment()).thenReturn(ImmutableSet.of(new TopicPartition(topic, 1)));
-    this.task.initialize(context);
-    this.task.start(
-        ImmutableMap.of(RedisSinkConnectorConfig.HOSTS_CONFIG, String.format("%s:%s", address.getHostString(), address.getPort()))
-    );
 
+
+  @Test
+  public void putEmpty() throws ExecutionException, InterruptedException {
+    this.task.start(this.settings);
     this.task.put(ImmutableList.of());
   }
 
@@ -129,15 +111,8 @@ public class RedisStreamsSinkTaskIT {
   }
 
   @Test
-  public void putWrite(@Port(container = "redis", internalPort = 6379) InetSocketAddress address) throws ExecutionException, InterruptedException, TimeoutException, IOException {
-    log.info("address = {}", address);
-    final String topic = "putWrite";
-    SinkTaskContext context = mock(SinkTaskContext.class);
-    when(context.assignment()).thenReturn(ImmutableSet.of(new TopicPartition(topic, 1)));
-    this.task.initialize(context);
-    this.task.start(
-        ImmutableMap.of(RedisSinkConnectorConfig.HOSTS_CONFIG, String.format("%s:%s", address.getHostString(), address.getPort()))
-    );
+  public void putWrite() throws ExecutionException, InterruptedException, TimeoutException, IOException {
+    this.task.start(this.settings);
 
     final List<TestLocation> locations = TestLocation.loadLocations();
     final AtomicLong offset = new AtomicLong(1L);
@@ -145,16 +120,17 @@ public class RedisStreamsSinkTaskIT {
         .map(l -> structWrite(l, topic, 1, offset))
         .collect(Collectors.toList());
     this.task.put(writes);
+    Map<TopicPartition, OffsetAndMetadata> offsets = offsets(writes);
+    this.task.flush(offsets);
 
-    XReadArgs.StreamOffset<byte[]> startOffset =
+    XReadArgs.StreamOffset<String> startOffset =
         XReadArgs.StreamOffset.from(
-            topic.getBytes(Charsets.UTF_8),
+            topic,
             "0-0"
         );
-    List<StreamMessage<String, String>> messages = this.task.session.asyncCommands().xread(startOffset).get(30, TimeUnit.SECONDS)
-        .stream()
-        .map(this::convert)
-        .collect(Collectors.toList());
+
+
+    List<StreamMessage<String, String>> messages = this.connectionHelper.redisConnection().sync().xread(startOffset);
     assertNotNull(messages);
     assertEquals(locations.size(), messages.size());
     IntStream.range(0, locations.size() - 1).forEach(index -> {
@@ -208,16 +184,8 @@ public class RedisStreamsSinkTaskIT {
   }
 
   //  @Test
-  public void putDelete(@Port(container = "redis", internalPort = 6379) InetSocketAddress address) throws
-      ExecutionException, InterruptedException, IOException, TimeoutException {
-    log.info("address = {}", address);
-    final String topic = "putDelete";
-    SinkTaskContext context = mock(SinkTaskContext.class);
-    when(context.assignment()).thenReturn(ImmutableSet.of(new TopicPartition(topic, 1)));
-    this.task.initialize(context);
-    this.task.start(
-        ImmutableMap.of(RedisSinkConnectorConfig.HOSTS_CONFIG, String.format("%s:%s", address.getHostString(), address.getPort()))
-    );
+  public void putDelete() throws ExecutionException, InterruptedException, IOException, TimeoutException {
+    this.task.start(this.settings);
 
     final List<TestLocation> locations = TestLocation.loadLocations();
     final AtomicLong offset = new AtomicLong(1L);
@@ -233,10 +201,37 @@ public class RedisStreamsSinkTaskIT {
     assertNotExists(locations);
   }
 
-  @AfterEach
-  public void after() {
-    if (null != this.task) {
-      this.task.stop();
+
+
+  @Compose(
+      dockerComposePath = "src/test/resources/docker/standard/docker-compose.yml",
+      clusterHealthCheck = RedisStandardHealthCheck.class
+  )
+  public static class Standard extends RedisStreamsSinkTaskIT {
+    @Override
+    protected ConnectionHelper createConnectionHelper(Cluster cluster) {
+      return new ConnectionHelper.Standard(cluster);
+    }
+  }
+
+  @Compose(
+      dockerComposePath = "src/test/resources/docker/sentinel/docker-compose.yml",
+      clusterHealthCheck = RedisSentinelHealthCheck.class
+  )
+  public static class Sentinel extends RedisStreamsSinkTaskIT {
+    @Override
+    protected ConnectionHelper createConnectionHelper(Cluster cluster) {
+      return new ConnectionHelper.Sentinel(cluster);
+    }
+  }
+  @Compose(
+      dockerComposePath = "src/test/resources/docker/cluster/docker-compose.yml",
+      clusterHealthCheck = RedisClusterHealthCheck.class
+  )
+  public static class RedisCluster extends RedisStreamsSinkTaskIT {
+    @Override
+    protected ConnectionHelper createConnectionHelper(Cluster cluster) {
+      return new ConnectionHelper.RedisCluster(cluster);
     }
   }
 

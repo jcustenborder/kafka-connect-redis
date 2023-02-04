@@ -34,8 +34,8 @@ class RedisSinkConnectorConfig extends RedisConnectorConfig {
   public final OffsetReset offsetReset;
 
 
-  public RedisSinkConnectorConfig(Map<?, ?> originals) {
-    super(config(), originals);
+  public RedisSinkConnectorConfig(ConfigDef config, Map<?, ?> originals) {
+    super(config, originals);
     this.offsetReset = ConfigUtils.getEnum(OffsetReset.class, this, OFFSET_RESET_BEHAVIOR_CONF);
   }
 

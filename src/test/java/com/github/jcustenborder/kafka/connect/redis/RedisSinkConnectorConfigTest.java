@@ -42,14 +42,14 @@ public class RedisSinkConnectorConfigTest {
 
   @Test
   public void testDefaultOperationTimeoutsConfig() {
-    RedisSinkConnectorConfig config = new RedisSinkConnectorConfig(props);
+    RedisCacheSinkConnectorConfig config = new RedisCacheSinkConnectorConfig(props);
     assertEquals(config.operationTimeoutMs, 10000L);
   }
 
   @Test
   public void testSetOperationTimeoutConfig() {
     props.put(RedisConnectorConfig.OPERATION_TIMEOUT_MS_CONF, "33000");
-    RedisSinkConnectorConfig config = new RedisSinkConnectorConfig(props);
+    RedisCacheSinkConnectorConfig config = new RedisCacheSinkConnectorConfig(props);
     assertEquals(config.operationTimeoutMs, 33000L);
   }
 
@@ -57,41 +57,41 @@ public class RedisSinkConnectorConfigTest {
   public void testInvalidOperationTimeoutConfig() {
     props.put(RedisConnectorConfig.OPERATION_TIMEOUT_MS_CONF, "99");
     Assertions.assertThrows(ConfigException.class, () -> {
-      new RedisSinkConnectorConfig(props);
+      new RedisCacheSinkConnectorConfig(props);
     });
   }
 
   @Test
   public void testDefaultCharsetConfig() {
-    RedisSinkConnectorConfig config = new RedisSinkConnectorConfig(props);
+    RedisCacheSinkConnectorConfig config = new RedisCacheSinkConnectorConfig(props);
     assertEquals(config.charset.toString(), "UTF-8");
   }
 
   @Test
   public void testSetCharsetConfig() {
-    props.put(RedisSinkConnectorConfig.CHARSET_CONF, "windows-1257");
-    RedisSinkConnectorConfig config = new RedisSinkConnectorConfig(props);
+    props.put(RedisCacheSinkConnectorConfig.CHARSET_CONF, "windows-1257");
+    RedisCacheSinkConnectorConfig config = new RedisCacheSinkConnectorConfig(props);
     assertEquals(config.charset.toString(), "windows-1257");
   }
 
   @Test
   public void testInvalidCharsetConfig() {
-    props.put(RedisSinkConnectorConfig.CHARSET_CONF, "Big56");
+    props.put(RedisCacheSinkConnectorConfig.CHARSET_CONF, "Big56");
     Assertions.assertThrows(ConfigException.class, () -> {
-      new RedisSinkConnectorConfig(props);
+      new RedisCacheSinkConnectorConfig(props);
     });
   }
 
   @Test
   public void testSSLConfigs() {
-    props.put(RedisSinkConnectorConfig.SSL_CONFIG, "true");
-    props.put(RedisSinkConnectorConfig.SSL_PROVIDER_CONFIG, "OPENSSL");
-    props.put(RedisSinkConnectorConfig.SSL_KEYSTORE_PASSWORD_CONFIG, "pass1234");
-    props.put(RedisSinkConnectorConfig.SSL_KEYSTORE_PATH_CONFIG, "/path1");
-    props.put(RedisSinkConnectorConfig.SSL_TRUSTSTORE_PASSWORD_CONFIG, "pass4321");
-    props.put(RedisSinkConnectorConfig.SSL_TRUSTSTORE_PATH_CONFIG, "/path2");
+    props.put(RedisCacheSinkConnectorConfig.SSL_CONFIG, "true");
+    props.put(RedisCacheSinkConnectorConfig.SSL_PROVIDER_CONFIG, "OPENSSL");
+    props.put(RedisCacheSinkConnectorConfig.SSL_KEYSTORE_PASSWORD_CONFIG, "pass1234");
+    props.put(RedisCacheSinkConnectorConfig.SSL_KEYSTORE_PATH_CONFIG, "/path1");
+    props.put(RedisCacheSinkConnectorConfig.SSL_TRUSTSTORE_PASSWORD_CONFIG, "pass4321");
+    props.put(RedisCacheSinkConnectorConfig.SSL_TRUSTSTORE_PATH_CONFIG, "/path2");
 
-    RedisSinkConnectorConfig config = new RedisSinkConnectorConfig(props);
+    RedisCacheSinkConnectorConfig config = new RedisCacheSinkConnectorConfig(props);
 
     assertTrue(config.sslEnabled);
     assertEquals(config.sslProvider, RedisConnectorConfig.RedisSslProvider.OPENSSL);
@@ -103,7 +103,7 @@ public class RedisSinkConnectorConfigTest {
 
   @Test
   public void testDefaultHostConfig() {
-    RedisSinkConnectorConfig config = new RedisSinkConnectorConfig(props);
+    RedisCacheSinkConnectorConfig config = new RedisCacheSinkConnectorConfig(props);
     List<HostAndPort> result = new ArrayList<>();
     HostAndPort hostAndPort = HostAndPort.fromString("localhost:6379");
     result.add(hostAndPort);
@@ -112,8 +112,8 @@ public class RedisSinkConnectorConfigTest {
 
   @Test
   public void testSetHostsConfig() {
-    props.put(RedisSinkConnectorConfig.HOSTS_CONFIG, "127.4.5.7:6345,152.4.3.2");
-    RedisSinkConnectorConfig config = new RedisSinkConnectorConfig(props);
+    props.put(RedisCacheSinkConnectorConfig.HOSTS_CONFIG, "127.4.5.7:6345,152.4.3.2");
+    RedisCacheSinkConnectorConfig config = new RedisCacheSinkConnectorConfig(props);
     List<HostAndPort> result = new ArrayList<>();
     HostAndPort hostAndPort1 = HostAndPort.fromString("127.4.5.7:6345");
     HostAndPort hostAndPort2 = HostAndPort.fromString("152.4.3.2:6379");
@@ -124,132 +124,132 @@ public class RedisSinkConnectorConfigTest {
 
   @Test
   public void testInvalidHostsConfig() {
-    props.put(RedisSinkConnectorConfig.HOSTS_CONFIG, "333.3.2.1:66666");
+    props.put(RedisCacheSinkConnectorConfig.HOSTS_CONFIG, "333.3.2.1:66666");
     Assertions.assertThrows(IllegalArgumentException.class, () -> {
-      new RedisSinkConnectorConfig(props);
+      new RedisCacheSinkConnectorConfig(props);
     });
   }
 
   @Test
   public void testDefaultPasswordConfig() {
-    RedisSinkConnectorConfig config = new RedisSinkConnectorConfig(props);
+    RedisCacheSinkConnectorConfig config = new RedisCacheSinkConnectorConfig(props);
     assertEquals(config.password, "");
   }
 
   @Test
   public void testSetPasswordConfig() {
-    props.put(RedisSinkConnectorConfig.PASSWORD_CONFIG, "hocuspocus");
-    RedisSinkConnectorConfig config = new RedisSinkConnectorConfig(props);
+    props.put(RedisCacheSinkConnectorConfig.PASSWORD_CONFIG, "hocuspocus");
+    RedisCacheSinkConnectorConfig config = new RedisCacheSinkConnectorConfig(props);
     assertEquals(config.password, "hocuspocus");
   }
 
   @Test
   public void testDefaultDatabaseConfig() {
-    RedisSinkConnectorConfig config = new RedisSinkConnectorConfig(props);
+    RedisCacheSinkConnectorConfig config = new RedisCacheSinkConnectorConfig(props);
     assertEquals(config.database, 1);
   }
 
   @Test
   public void testSetDatabaseConfig() {
-    props.put(RedisSinkConnectorConfig.DATABASE_CONFIG, "4");
-    RedisSinkConnectorConfig config = new RedisSinkConnectorConfig(props);
+    props.put(RedisCacheSinkConnectorConfig.DATABASE_CONFIG, "4");
+    RedisCacheSinkConnectorConfig config = new RedisCacheSinkConnectorConfig(props);
     assertEquals(config.database, 4);
   }
 
   @Test
   public void testDefaultClientModeConfig() {
-    RedisSinkConnectorConfig config = new RedisSinkConnectorConfig(props);
-    assertEquals(config.clientMode, RedisSinkConnectorConfig.ClientMode.Standalone);
+    RedisCacheSinkConnectorConfig config = new RedisCacheSinkConnectorConfig(props);
+    assertEquals(config.clientMode, RedisCacheSinkConnectorConfig.ClientMode.Standalone);
   }
 
   @Test
   public void testSetClientModeConfig() {
-    props.put(RedisSinkConnectorConfig.CLIENT_MODE_CONFIG, "Cluster");
-    RedisSinkConnectorConfig config = new RedisSinkConnectorConfig(props);
-    assertEquals(config.clientMode, RedisSinkConnectorConfig.ClientMode.Cluster);
+    props.put(RedisCacheSinkConnectorConfig.CLIENT_MODE_CONFIG, "Cluster");
+    RedisCacheSinkConnectorConfig config = new RedisCacheSinkConnectorConfig(props);
+    assertEquals(config.clientMode, RedisCacheSinkConnectorConfig.ClientMode.Cluster);
   }
 
   @Test
   public void testDefaultAutoReconnectEnabledConfig() {
-    RedisSinkConnectorConfig config = new RedisSinkConnectorConfig(props);
+    RedisCacheSinkConnectorConfig config = new RedisCacheSinkConnectorConfig(props);
     assertTrue(config.autoReconnectEnabled);
   }
 
   @Test
   public void testSetAutoReconnectEnabledConfig() {
-    props.put(RedisSinkConnectorConfig.AUTO_RECONNECT_ENABLED_CONFIG, "false");
-    RedisSinkConnectorConfig config = new RedisSinkConnectorConfig(props);
+    props.put(RedisCacheSinkConnectorConfig.AUTO_RECONNECT_ENABLED_CONFIG, "false");
+    RedisCacheSinkConnectorConfig config = new RedisCacheSinkConnectorConfig(props);
     assertFalse(config.autoReconnectEnabled);
   }
 
   @Test
   public void testInvalidAutoReconnectEnabledConfig() {
-    props.put(RedisSinkConnectorConfig.AUTO_RECONNECT_ENABLED_CONFIG, "99");
+    props.put(RedisCacheSinkConnectorConfig.AUTO_RECONNECT_ENABLED_CONFIG, "99");
     Assertions.assertThrows(ConfigException.class, () -> {
-      new RedisSinkConnectorConfig(props);
+      new RedisCacheSinkConnectorConfig(props);
     });
   }
 
   @Test
   public void testDefaultRequestQueueSizeConfig() {
-    RedisSinkConnectorConfig config = new RedisSinkConnectorConfig(props);
+    RedisCacheSinkConnectorConfig config = new RedisCacheSinkConnectorConfig(props);
     assertEquals(config.requestQueueSize, 2147483647);
   }
 
   @Test
   public void testSetRequestQueueSizeConfig() {
-    props.put(RedisSinkConnectorConfig.REQUEST_QUEUE_SIZE_CONFIG, "456734");
-    RedisSinkConnectorConfig config = new RedisSinkConnectorConfig(props);
+    props.put(RedisCacheSinkConnectorConfig.REQUEST_QUEUE_SIZE_CONFIG, "456734");
+    RedisCacheSinkConnectorConfig config = new RedisCacheSinkConnectorConfig(props);
     assertEquals(config.requestQueueSize, 456734);
   }
 
   @Test
   public void testInvalidRequestQueueSizeConfig() {
-    props.put(RedisSinkConnectorConfig.REQUEST_QUEUE_SIZE_CONFIG, "hello");
+    props.put(RedisCacheSinkConnectorConfig.REQUEST_QUEUE_SIZE_CONFIG, "hello");
     Assertions.assertThrows(ConfigException.class, () -> {
-      new RedisSinkConnectorConfig(props);
+      new RedisCacheSinkConnectorConfig(props);
     });
   }
 
   @Test
   public void testDefaultSocketTCPNoDelayConfig() {
-    RedisSinkConnectorConfig config = new RedisSinkConnectorConfig(props);
+    RedisCacheSinkConnectorConfig config = new RedisCacheSinkConnectorConfig(props);
     assertTrue(config.tcpNoDelay);
   }
 
   @Test
   public void testSetSocketTCPNoDelayConfig() {
-    props.put(RedisSinkConnectorConfig.SOCKET_TCP_NO_DELAY_CONFIG, "false");
-    RedisSinkConnectorConfig config = new RedisSinkConnectorConfig(props);
+    props.put(RedisCacheSinkConnectorConfig.SOCKET_TCP_NO_DELAY_CONFIG, "false");
+    RedisCacheSinkConnectorConfig config = new RedisCacheSinkConnectorConfig(props);
     assertFalse(config.tcpNoDelay);
   }
 
   @Test
   public void testInvalidSocketTCPNoDelayConfig() {
-    props.put(RedisSinkConnectorConfig.SOCKET_TCP_NO_DELAY_CONFIG, "99");
+    props.put(RedisCacheSinkConnectorConfig.SOCKET_TCP_NO_DELAY_CONFIG, "99");
     Assertions.assertThrows(ConfigException.class, () -> {
-      new RedisSinkConnectorConfig(props);
+      new RedisCacheSinkConnectorConfig(props);
     });
   }
 
   @Test
   public void testDefaultSocketKeepAliveConfig() {
-    RedisSinkConnectorConfig config = new RedisSinkConnectorConfig(props);
+    RedisCacheSinkConnectorConfig config = new RedisCacheSinkConnectorConfig(props);
     assertFalse(config.keepAliveEnabled);
   }
 
   @Test
   public void testSetSocketKeepAliveConfig() {
-    props.put(RedisSinkConnectorConfig.SOCKET_KEEP_ALIVE_CONFIG, "true");
-    RedisSinkConnectorConfig config = new RedisSinkConnectorConfig(props);
+    props.put(RedisCacheSinkConnectorConfig.SOCKET_KEEP_ALIVE_CONFIG, "true");
+    RedisCacheSinkConnectorConfig config = new RedisCacheSinkConnectorConfig(props);
     assertTrue(config.keepAliveEnabled);
   }
 
   @Test
   public void testInvalidSocketKeepAliveConfig() {
-    props.put(RedisSinkConnectorConfig.SOCKET_KEEP_ALIVE_CONFIG, "99");
+    props.put(RedisCacheSinkConnectorConfig.SOCKET_KEEP_ALIVE_CONFIG, "99");
     Assertions.assertThrows(ConfigException.class, () -> {
-      new RedisSinkConnectorConfig(props);
+      new RedisCacheSinkConnectorConfig(props);
     });
   }
 }

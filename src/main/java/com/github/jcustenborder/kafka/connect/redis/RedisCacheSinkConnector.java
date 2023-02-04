@@ -47,7 +47,7 @@ import java.util.Map;
 public class RedisCacheSinkConnector extends AbstractRedisSinkConnector<RedisSinkConnectorConfig> {
   @Override
   protected RedisSinkConnectorConfig config(Map<String, String> settings) {
-    return new RedisSinkConnectorConfig(settings);
+    return new RedisCacheSinkConnectorConfig(settings);
   }
 
   @Override
@@ -57,6 +57,6 @@ public class RedisCacheSinkConnector extends AbstractRedisSinkConnector<RedisSin
 
   @Override
   public ConfigDef config() {
-    return RedisSinkConnectorConfig.config();
+    return RedisCacheSinkConnectorConfig.config();
   }
 }

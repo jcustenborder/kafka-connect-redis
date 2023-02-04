@@ -15,16 +15,23 @@
  */
 package com.github.jcustenborder.kafka.connect.redis;
 
-import org.apache.kafka.clients.consumer.OffsetAndMetadata;
-import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.connect.sink.SinkRecord;
-import org.apache.kafka.connect.sink.SinkTask;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.Collection;
 import java.util.Map;
 
-public class RedisPubSubSinkTask extends SinkTask {
-  protected RedisPubSubSession<byte[], byte[]> session;
+import static com.github.jcustenborder.kafka.connect.redis.Utils.logLocation;
+
+public class RedisPubSubSinkTask extends AbstractRedisSinkTask<RedisPubSubSinkConnectorConfig> {
+  private static final Logger log = LoggerFactory.getLogger(RedisPubSubSinkTask.class);
+  protected RedisPubSubSession<byte[], byte[]> pubSubSession;
+
+  @Override
+  protected RedisPubSubSinkConnectorConfig config(Map<String, String> settings) {
+    return new RedisPubSubSinkConnectorConfig(settings);
+  }
 
   @Override
   public String version() {
@@ -32,25 +39,28 @@ public class RedisPubSubSinkTask extends SinkTask {
   }
 
   @Override
-  public void start(Map<String, String> map) {
-
+  public void start(Map<String, String> settings) {
+    super.start(settings);
+    this.pubSubSession = this.sessionFactory.createPubSubSession(this.config);
   }
 
   @Override
   public void put(Collection<SinkRecord> records) {
+    for (SinkRecord record : records) {
+      logLocation(log, record);
 
+      if (null == record.value()) {
+        continue;
+      }
 
-
+      final byte[] value = toBytes("value", record.value());
+      this.config.target.stream()
+          .map(target ->
+              this.pubSubSession.asyncCommands().publish(target, value)
+                  .exceptionally(exceptionally(record))
+                  .toCompletableFuture()
+          ).forEach(this.futures::add);
+    }
   }
 
-  @Override
-  public void flush(Map<TopicPartition, OffsetAndMetadata> currentOffsets) {
-
-
-  }
-
-  @Override
-  public void stop() {
-
-  }
 }

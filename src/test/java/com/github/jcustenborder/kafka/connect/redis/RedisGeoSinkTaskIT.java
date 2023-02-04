@@ -16,31 +16,26 @@
 package com.github.jcustenborder.kafka.connect.redis;
 
 import com.github.jcustenborder.docker.junit5.Compose;
-import com.google.common.base.Charsets;
+import com.github.jcustenborder.kafka.connect.redis.healthchecks.RedisClusterHealthCheck;
+import com.github.jcustenborder.kafka.connect.redis.healthchecks.RedisSentinelHealthCheck;
+import com.github.jcustenborder.kafka.connect.redis.healthchecks.RedisStandardHealthCheck;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.LinkedListMultimap;
-import com.google.common.collect.ListMultimap;
-import io.lettuce.core.GeoCoordinates;
+import com.palantir.docker.compose.connection.Cluster;
 import org.apache.kafka.clients.consumer.OffsetAndMetadata;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.connect.sink.SinkRecord;
-import org.apache.kafka.connect.sink.SinkTaskContext;
-import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
-import java.util.stream.IntStream;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -50,8 +45,8 @@ import static org.mockito.Mockito.when;
 @Compose(
     dockerComposePath = "src/test/resources/docker-compose.yml"
 )
-public abstract class AbstractTaskRedisGeoSinkTaskIT extends AbstractSinkTaskIntegrationTest<RedisGeoSinkTask> {
-  private static final Logger log = LoggerFactory.getLogger(AbstractTaskRedisGeoSinkTaskIT.class);
+public abstract class RedisGeoSinkTaskIT extends AbstractSinkTaskIntegrationTest<RedisGeoSinkTask> {
+  private static final Logger log = LoggerFactory.getLogger(RedisGeoSinkTaskIT.class);
 
   @Override
   protected RedisGeoSinkTask createTask() {
@@ -61,36 +56,21 @@ public abstract class AbstractTaskRedisGeoSinkTaskIT extends AbstractSinkTaskInt
 
   @Test
   public void emptyAssignment() throws ExecutionException, InterruptedException {
-    final String topic = "putWrite";
-    SinkTaskContext context = mock(SinkTaskContext.class);
-    when(context.assignment()).thenReturn(ImmutableSet.of());
-    this.task.initialize(context);
+    when(this.sinkTaskContext.assignment()).thenReturn(ImmutableSet.of());
     this.task.start(this.settings);
   }
 
   @Test
   public void putEmpty() throws ExecutionException, InterruptedException {
-
-    final String topic = "putWrite";
-    SinkTaskContext context = mock(SinkTaskContext.class);
-    when(context.assignment()).thenReturn(ImmutableSet.of(new TopicPartition(topic, 1)));
-    this.task.initialize(context);
     this.task.start(this.settings);
-
     this.task.put(ImmutableList.of());
   }
 
 
   @Test
   public void putWrite() throws ExecutionException, InterruptedException, TimeoutException, IOException {
-
-    final String topic = "putWrite";
-    SinkTaskContext context = mock(SinkTaskContext.class);
-    when(context.assignment()).thenReturn(ImmutableSet.of(new TopicPartition(topic, 1)));
-    this.task.initialize(context);
-    this.task.start(
-        this.settings
-    );
+    when(sinkTaskContext.assignment()).thenReturn(ImmutableSet.of(new TopicPartition(topic, 1)));
+    this.task.start(this.settings);
 
     AtomicLong offset = new AtomicLong(1L);
     List<TestLocation> expected = TestLocation.loadLocations();
@@ -100,7 +80,7 @@ public abstract class AbstractTaskRedisGeoSinkTaskIT extends AbstractSinkTaskInt
 
     this.task.put(records);
 
-    Map<TopicPartition, OffsetAndMetadata> offsets = offsets(records);
+    Map<TopicPartition, OffsetAndMetadata> offsets = TestUtils.offsets(records);
     this.task.flush(offsets);
 
 //    ListMultimap<SinkOperation.GeoSetKey, TestLocation> operations = locationByRegion(expected);
@@ -134,16 +114,9 @@ public abstract class AbstractTaskRedisGeoSinkTaskIT extends AbstractSinkTaskInt
 //  }
 
   @Test
-  public void putDelete() throws
-      ExecutionException, InterruptedException, IOException, TimeoutException {
-
-    final String topic = "putDelete";
-    SinkTaskContext context = mock(SinkTaskContext.class);
-    when(context.assignment()).thenReturn(ImmutableSet.of(new TopicPartition(topic, 1)));
-    this.task.initialize(context);
-    this.task.start(
-        this.settings
-    );
+  public void putDelete() throws ExecutionException, InterruptedException, IOException, TimeoutException {
+    when(sinkTaskContext.assignment()).thenReturn(ImmutableSet.of(new TopicPartition(topic, 1)));
+    this.task.start(this.settings);
 
     AtomicLong offset = new AtomicLong(1L);
     List<TestLocation> expected = TestLocation.loadLocations();
@@ -155,7 +128,7 @@ public abstract class AbstractTaskRedisGeoSinkTaskIT extends AbstractSinkTaskInt
         .collect(Collectors.toList());
 
     this.task.put(writes);
-    Map<TopicPartition, OffsetAndMetadata> offsets = offsets(writes);
+    Map<TopicPartition, OffsetAndMetadata> offsets = TestUtils.offsets(writes);
     this.task.flush(offsets);
 
 
@@ -175,7 +148,7 @@ public abstract class AbstractTaskRedisGeoSinkTaskIT extends AbstractSinkTaskInt
 //      });
 //    }
     this.task.put(deletes);
-    offsets = offsets(writes);
+    offsets = TestUtils.offsets(writes);
     this.task.flush(offsets);
 //
 //    for (SinkOperation.GeoSetKey key : operations.keySet()) {
@@ -193,11 +166,35 @@ public abstract class AbstractTaskRedisGeoSinkTaskIT extends AbstractSinkTaskInt
 //    }
   }
 
-  @AfterEach
-  public void after() {
-    if (null != this.task) {
-      this.task.stop();
+  @Compose(
+      dockerComposePath = "src/test/resources/docker/standard/docker-compose.yml",
+      clusterHealthCheck = RedisStandardHealthCheck.class
+  )
+  public static class Standard extends RedisGeoSinkTaskIT {
+    @Override
+    protected ConnectionHelper createConnectionHelper(Cluster cluster) {
+      return new ConnectionHelper.Standard(cluster);
     }
   }
 
+  @Compose(
+      dockerComposePath = "src/test/resources/docker/sentinel/docker-compose.yml",
+      clusterHealthCheck = RedisSentinelHealthCheck.class
+  )
+  public static class Sentinel extends RedisGeoSinkTaskIT {
+    @Override
+    protected ConnectionHelper createConnectionHelper(Cluster cluster) {
+      return new ConnectionHelper.Sentinel(cluster);
+    }
+  }
+  @Compose(
+      dockerComposePath = "src/test/resources/docker/cluster/docker-compose.yml",
+      clusterHealthCheck = RedisClusterHealthCheck.class
+  )
+  public static class RedisCluster extends RedisGeoSinkTaskIT {
+    @Override
+    protected ConnectionHelper createConnectionHelper(Cluster cluster) {
+      return new ConnectionHelper.RedisCluster(cluster);
+    }
+  }
 }

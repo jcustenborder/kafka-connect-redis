@@ -25,13 +25,14 @@ import java.util.concurrent.CompletableFuture;
 
 import static com.github.jcustenborder.kafka.connect.redis.Utils.logLocation;
 
-public class RedisCacheSinkTask extends AbstractRedisCacheSinkTask<RedisSinkConnectorConfig> {
+public class RedisCacheSinkTask extends AbstractRedisCacheSinkTask<RedisCacheSinkConnectorConfig> {
   private static final Logger log = LoggerFactory.getLogger(RedisCacheSinkTask.class);
 
   @Override
-  protected RedisSinkConnectorConfig config(Map<String, String> settings) {
-    return new RedisSinkConnectorConfig(settings);
+  protected RedisCacheSinkConnectorConfig config(Map<String, String> settings) {
+    return new RedisCacheSinkConnectorConfig(settings);
   }
+
 
   @Override
   public void put(Collection<SinkRecord> records) {
@@ -45,9 +46,15 @@ public class RedisCacheSinkTask extends AbstractRedisCacheSinkTask<RedisSinkConn
       CompletableFuture<?> future;
 
       if (null != value) {
-        future = this.session.asyncCommands().set(key, value)
-            .exceptionally(exceptionally(record))
-            .toCompletableFuture();
+        if (0 == this.config.ttl) {
+          future = this.session.asyncCommands().set(key, value)
+              .exceptionally(exceptionally(record))
+              .toCompletableFuture();
+        } else {
+          future = this.session.asyncCommands().psetex(key, this.config.ttl, value)
+              .exceptionally(exceptionally(record))
+              .toCompletableFuture();
+        }
       } else {
         future = this.session.asyncCommands().del(key)
             .exceptionally(exceptionally(record))

@@ -16,8 +16,11 @@
 package com.github.jcustenborder.kafka.connect.redis;
 
 import com.github.jcustenborder.docker.junit5.Compose;
-import com.github.jcustenborder.docker.junit5.Port;
+import com.github.jcustenborder.kafka.connect.redis.healthchecks.RedisClusterHealthCheck;
+import com.github.jcustenborder.kafka.connect.redis.healthchecks.RedisSentinelHealthCheck;
+import com.github.jcustenborder.kafka.connect.redis.healthchecks.RedisStandardHealthCheck;
 import com.google.common.collect.ImmutableMap;
+import com.palantir.docker.compose.connection.Cluster;
 import io.lettuce.core.LettuceFutures;
 import io.lettuce.core.RedisFuture;
 import org.apache.kafka.connect.data.Schema;
@@ -25,16 +28,11 @@ import org.apache.kafka.connect.data.SchemaBuilder;
 import org.apache.kafka.connect.data.Struct;
 import org.apache.kafka.connect.sink.SinkRecord;
 import org.apache.kafka.connect.source.SourceRecord;
-import org.apache.kafka.connect.source.SourceTaskContext;
-import org.apache.kafka.connect.storage.OffsetStorageReader;
-import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
-import java.net.InetSocketAddress;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
@@ -45,13 +43,8 @@ import java.util.stream.Collectors;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
-@Compose(
-    dockerComposePath = "src/test/resources/docker-compose.yml"
-)
-public class RedisStreamsSourceTaskIT {
+public abstract class RedisStreamsSourceTaskIT extends AbstractSourceTaskIntegrationTest<RedisStreamsSourceTask> {
   static final Schema VALUE_SCHEMA = SchemaBuilder.struct()
       .field("ident", Schema.STRING_SCHEMA)
       .field("region", Schema.STRING_SCHEMA)
@@ -59,12 +52,12 @@ public class RedisStreamsSourceTaskIT {
       .field("longitude", Schema.STRING_SCHEMA)
       .build();
   private static final Logger log = LoggerFactory.getLogger(RedisStreamsSourceTaskIT.class);
-  RedisStreamsSourceTask task;
 
-  @BeforeEach
-  public void before() {
-    this.task = new RedisStreamsSourceTask();
+  @Override
+  protected RedisStreamsSourceTask createTask() {
+    return new RedisStreamsSourceTask();
   }
+
 
   public SinkRecord structWrite(
       TestLocation location,
@@ -95,21 +88,12 @@ public class RedisStreamsSourceTaskIT {
   }
 
   @Test
-  public void putWrite(@Port(container = "redis", internalPort = 6379) InetSocketAddress address) throws ExecutionException, InterruptedException, TimeoutException, IOException {
-    log.info("address = {}", address);
-    final String topic = "putWrite";
-    SourceTaskContext context = mock(SourceTaskContext.class);
-    OffsetStorageReader offsetStorageReader = mock(OffsetStorageReader.class);
-    when(context.offsetStorageReader()).thenReturn(offsetStorageReader);
-    this.task.initialize(context);
-    this.task.start(
-        ImmutableMap.of(
-            RedisStreamsSourceConnectorConfig.HOSTS_CONFIG, String.format("%s:%s", address.getHostString(), address.getPort()),
-            RedisStreamsSourceConnectorConfig.REDIS_STREAMS_CONF, topic,
-            RedisStreamsSourceConnectorConfig.REDIS_CONSUMER_GROUP_CONF, topic + "-group",
-            RedisStreamsSourceConnectorConfig.REDIS_CONSUMER_ID_CONF, "0"
-        )
-    );
+  public void putWrite() throws ExecutionException, InterruptedException, TimeoutException, IOException {
+    this.settings.put(RedisStreamsSourceConnectorConfig.REDIS_STREAMS_CONF, topic);
+    this.settings.put(RedisStreamsSourceConnectorConfig.REDIS_CONSUMER_GROUP_CONF, topic + "-group");
+    this.settings.put(RedisStreamsSourceConnectorConfig.REDIS_CONSUMER_ID_CONF, "0");
+    this.task.start(this.settings);
+
     final List<TestLocation> locations = TestLocation.loadLocations();
     final List<RedisFuture<String>> results = locations.stream()
         .map(this::map)
@@ -152,11 +136,37 @@ public class RedisStreamsSourceTaskIT {
 //    assertEquals(0, written);
 //  }
 
-  @AfterEach
-  public void after() {
-    if (null != this.task) {
-      this.task.stop();
+
+  @Compose(
+      dockerComposePath = "src/test/resources/docker/standard/docker-compose.yml",
+      clusterHealthCheck = RedisStandardHealthCheck.class
+  )
+  public static class Standard extends RedisStreamsSourceTaskIT {
+    @Override
+    protected ConnectionHelper createConnectionHelper(Cluster cluster) {
+      return new ConnectionHelper.Standard(cluster);
     }
   }
 
+  @Compose(
+      dockerComposePath = "src/test/resources/docker/sentinel/docker-compose.yml",
+      clusterHealthCheck = RedisSentinelHealthCheck.class
+  )
+  public static class Sentinel extends RedisStreamsSourceTaskIT {
+    @Override
+    protected ConnectionHelper createConnectionHelper(Cluster cluster) {
+      return new ConnectionHelper.Sentinel(cluster);
+    }
+  }
+
+  @Compose(
+      dockerComposePath = "src/test/resources/docker/cluster/docker-compose.yml",
+      clusterHealthCheck = RedisClusterHealthCheck.class
+  )
+  public static class RedisCluster extends RedisStreamsSourceTaskIT {
+    @Override
+    protected ConnectionHelper createConnectionHelper(Cluster cluster) {
+      return new ConnectionHelper.RedisCluster(cluster);
+    }
+  }
 }

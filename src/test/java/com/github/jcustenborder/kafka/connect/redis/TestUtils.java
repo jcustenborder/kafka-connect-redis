@@ -17,7 +17,10 @@ package com.github.jcustenborder.kafka.connect.redis;
 
 import com.google.common.base.Charsets;
 import io.lettuce.core.KeyValue;
+import org.apache.kafka.clients.consumer.OffsetAndMetadata;
+import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.connect.header.Header;
+import org.apache.kafka.connect.sink.SinkRecord;
 import org.apache.kafka.connect.source.SourceRecord;
 
 import java.nio.charset.StandardCharsets;
@@ -72,6 +75,14 @@ public class TestUtils {
           args[i],
           args[i + 1]
       );
+    }
+    return result;
+  }
+
+  public static Map<TopicPartition, OffsetAndMetadata> offsets(List<SinkRecord> records) {
+    Map<TopicPartition, OffsetAndMetadata> result = new LinkedHashMap<>();
+    for (SinkRecord record : records) {
+      result.put(new TopicPartition(record.topic(), record.kafkaPartition()), new OffsetAndMetadata(record.kafkaOffset()));
     }
     return result;
   }

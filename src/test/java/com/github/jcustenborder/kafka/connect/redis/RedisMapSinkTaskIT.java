@@ -16,42 +16,39 @@
 package com.github.jcustenborder.kafka.connect.redis;
 
 import com.github.jcustenborder.docker.junit5.Compose;
-import com.github.jcustenborder.docker.junit5.Port;
+import com.github.jcustenborder.kafka.connect.redis.healthchecks.RedisClusterHealthCheck;
+import com.github.jcustenborder.kafka.connect.redis.healthchecks.RedisSentinelHealthCheck;
+import com.github.jcustenborder.kafka.connect.redis.healthchecks.RedisStandardHealthCheck;
 import com.google.common.base.Charsets;
 import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.ImmutableSet;
-import io.lettuce.core.KeyValue;
+import com.palantir.docker.compose.connection.Cluster;
+import io.lettuce.core.LettuceFutures;
+import org.apache.kafka.clients.consumer.OffsetAndMetadata;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.connect.data.Schema;
 import org.apache.kafka.connect.data.SchemaBuilder;
 import org.apache.kafka.connect.data.Struct;
 import org.apache.kafka.connect.sink.SinkRecord;
-import org.apache.kafka.connect.sink.SinkTaskContext;
-import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
-import java.net.InetSocketAddress;
+import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
-@Compose(
-    dockerComposePath = "src/test/resources/docker-compose.yml"
-)
-public class RedisMapSinkTaskIT {
+public abstract class RedisMapSinkTaskIT extends AbstractSinkTaskIntegrationTest<RedisMapSinkTask> {
   static final Schema VALUE_SCHEMA = SchemaBuilder.struct()
       .field("ident", Schema.STRING_SCHEMA)
       .field("region", Schema.STRING_SCHEMA)
@@ -59,36 +56,20 @@ public class RedisMapSinkTaskIT {
       .field("longitude", Schema.STRING_SCHEMA)
       .build();
   private static final Logger log = LoggerFactory.getLogger(RedisMapSinkTaskIT.class);
-  RedisMapSinkTask task;
 
-  @BeforeEach
-  public void before() {
-    this.task = new RedisMapSinkTask();
+  @Override
+  protected RedisMapSinkTask createTask() {
+    return new RedisMapSinkTask();
   }
 
   @Test
-  public void emptyAssignment(@Port(container = "redis", internalPort = 6379) InetSocketAddress address) throws ExecutionException, InterruptedException {
-    log.info("address = {}", address);
-    final String topic = "putWrite";
-    SinkTaskContext context = mock(SinkTaskContext.class);
-    when(context.assignment()).thenReturn(ImmutableSet.of());
-    this.task.initialize(context);
-    this.task.start(
-        ImmutableMap.of(RedisSinkConnectorConfig.HOSTS_CONFIG, String.format("%s:%s", address.getHostString(), address.getPort()))
-    );
+  public void emptyAssignment() throws ExecutionException, InterruptedException {
+    this.task.start(this.settings);
   }
 
   @Test
-  public void putEmpty(@Port(container = "redis", internalPort = 6379) InetSocketAddress address) throws ExecutionException, InterruptedException {
-    log.info("address = {}", address);
-    final String topic = "putWrite";
-    SinkTaskContext context = mock(SinkTaskContext.class);
-    when(context.assignment()).thenReturn(ImmutableSet.of(new TopicPartition(topic, 1)));
-    this.task.initialize(context);
-    this.task.start(
-        ImmutableMap.of(RedisSinkConnectorConfig.HOSTS_CONFIG, String.format("%s:%s", address.getHostString(), address.getPort()))
-    );
-
+  public void putEmpty() throws ExecutionException, InterruptedException {
+    this.task.start(this.settings);
     this.task.put(ImmutableList.of());
   }
 
@@ -125,15 +106,8 @@ public class RedisMapSinkTaskIT {
   }
 
   @Test
-  public void putWrite(@Port(container = "redis", internalPort = 6379) InetSocketAddress address) throws ExecutionException, InterruptedException, TimeoutException, IOException {
-    log.info("address = {}", address);
-    final String topic = "putWrite";
-    SinkTaskContext context = mock(SinkTaskContext.class);
-    when(context.assignment()).thenReturn(ImmutableSet.of(new TopicPartition(topic, 1)));
-    this.task.initialize(context);
-    this.task.start(
-        ImmutableMap.of(RedisSinkConnectorConfig.HOSTS_CONFIG, String.format("%s:%s", address.getHostString(), address.getPort()))
-    );
+  public void putWrite() throws ExecutionException, InterruptedException, TimeoutException, IOException {
+    this.task.start(this.settings);
 
     final List<TestLocation> locations = TestLocation.loadLocations();
     final AtomicLong offset = new AtomicLong(1L);
@@ -148,42 +122,44 @@ public class RedisMapSinkTaskIT {
     byte[][] fieldNames = VALUE_SCHEMA.fields().stream()
         .map(f -> f.name().getBytes(Charsets.UTF_8))
         .toArray(byte[][]::new);
+    final AtomicInteger foundLocations = new AtomicInteger(0);
+
+    List<CompletableFuture<?>> futures = new ArrayList<>();
+
     for (TestLocation location : locations) {
-      byte[] key = location.ident.getBytes(Charsets.UTF_8);
-      Map<String, String> actual = this.task.session.asyncCommands().hmget(key, fieldNames)
-          .get(30, TimeUnit.SECONDS)
-          .stream()
-          .map(TestUtils::toString)
-          .collect(Collectors.toMap(KeyValue::getKey, KeyValue::getValue));
-      Map<String, String> expected = ImmutableMap.of(
-          "ident", location.ident,
-          "region", location.region,
-          "latitude", Double.toString(location.latitude),
-          "longitude", Double.toString(location.longitude)
+      byte[] key = location.ident.getBytes(StandardCharsets.UTF_8);
+
+      futures.add(
+          this.task.session.asyncCommands().hgetall(key).thenAccept(byteMap -> {
+            foundLocations.incrementAndGet();
+
+          }).toCompletableFuture()
       );
-      assertEquals(expected, actual);
     }
+
+    this.task.session.connection().flushCommands();
+    LettuceFutures.awaitAll(30, TimeUnit.SECONDS, futures.toArray(new CompletableFuture<?>[futures.size()]));
+    assertEquals(locations.size(), foundLocations.get());
+
   }
 
   void assertNotExists(List<TestLocation> locations) throws InterruptedException, ExecutionException, TimeoutException {
-    byte[][] keys = locations.stream()
-        .map(e -> e.ident.getBytes(Charsets.UTF_8))
-        .toArray(byte[][]::new);
-    final long written = this.task.session.asyncCommands().exists(keys).get();
-    assertEquals(0, written);
+    final AtomicLong results = new AtomicLong(0);
+    CompletableFuture<?>[] futures = locations.stream()
+        .map(e -> e.ident.getBytes(StandardCharsets.UTF_8))
+        .map(b-> this.task.session.asyncCommands().exists(b).thenAccept(results::addAndGet).toCompletableFuture())
+        .toArray(CompletableFuture<?>[]::new);
+    log.info("Waiting for {} futures", futures.length);
+    this.task.session.connection().flushCommands();
+    LettuceFutures.awaitAll(30, TimeUnit.SECONDS, futures);
+    assertEquals(0, results.get());
   }
 
   @Test
-  public void putDelete(@Port(container = "redis", internalPort = 6379) InetSocketAddress address) throws
+  public void putDelete() throws
       ExecutionException, InterruptedException, IOException, TimeoutException {
-    log.info("address = {}", address);
-    final String topic = "putDelete";
-    SinkTaskContext context = mock(SinkTaskContext.class);
-    when(context.assignment()).thenReturn(ImmutableSet.of(new TopicPartition(topic, 1)));
-    this.task.initialize(context);
-    this.task.start(
-        ImmutableMap.of(RedisSinkConnectorConfig.HOSTS_CONFIG, String.format("%s:%s", address.getHostString(), address.getPort()))
-    );
+
+    this.task.start(this.settings);
 
     final List<TestLocation> locations = TestLocation.loadLocations();
     final AtomicLong offset = new AtomicLong(1L);
@@ -193,17 +169,50 @@ public class RedisMapSinkTaskIT {
     final List<SinkRecord> deletes = locations.stream()
         .map(l -> structDelete(l, topic, 1, offset))
         .collect(Collectors.toList());
+
     this.task.put(writes);
+    Map<TopicPartition, OffsetAndMetadata> offsets = TestUtils.offsets(writes);
+    this.task.flush(offsets);
+
     assertExists(locations);
+
     this.task.put(deletes);
+    offsets = TestUtils.offsets(writes);
+    this.task.flush(offsets);
+
     assertNotExists(locations);
   }
 
-  @AfterEach
-  public void after() {
-    if (null != this.task) {
-      this.task.stop();
+
+  @Compose(
+      dockerComposePath = "src/test/resources/docker/standard/docker-compose.yml",
+      clusterHealthCheck = RedisStandardHealthCheck.class
+  )
+  public static class Standard extends RedisMapSinkTaskIT {
+    @Override
+    protected ConnectionHelper createConnectionHelper(Cluster cluster) {
+      return new ConnectionHelper.Standard(cluster);
     }
   }
 
+  @Compose(
+      dockerComposePath = "src/test/resources/docker/sentinel/docker-compose.yml",
+      clusterHealthCheck = RedisSentinelHealthCheck.class
+  )
+  public static class Sentinel extends RedisMapSinkTaskIT {
+    @Override
+    protected ConnectionHelper createConnectionHelper(Cluster cluster) {
+      return new ConnectionHelper.Sentinel(cluster);
+    }
+  }
+  @Compose(
+      dockerComposePath = "src/test/resources/docker/cluster/docker-compose.yml",
+      clusterHealthCheck = RedisClusterHealthCheck.class
+  )
+  public static class RedisCluster extends RedisMapSinkTaskIT {
+    @Override
+    protected ConnectionHelper createConnectionHelper(Cluster cluster) {
+      return new ConnectionHelper.RedisCluster(cluster);
+    }
+  }
 }

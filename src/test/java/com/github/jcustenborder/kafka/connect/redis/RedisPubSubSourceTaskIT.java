@@ -15,13 +15,17 @@
  */
 package com.github.jcustenborder.kafka.connect.redis;
 
+import com.github.jcustenborder.docker.junit5.Compose;
+import com.github.jcustenborder.kafka.connect.redis.healthchecks.RedisClusterHealthCheck;
+import com.github.jcustenborder.kafka.connect.redis.healthchecks.RedisSentinelHealthCheck;
+import com.github.jcustenborder.kafka.connect.redis.healthchecks.RedisStandardHealthCheck;
+import com.palantir.docker.compose.connection.Cluster;
 import io.lettuce.core.LettuceFutures;
 import io.lettuce.core.RedisFuture;
 import org.apache.kafka.connect.header.Header;
 import org.apache.kafka.connect.source.SourceRecord;
 import org.apache.kafka.connect.source.SourceTaskContext;
 import org.apache.kafka.connect.storage.OffsetStorageReader;
-import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -43,8 +47,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public abstract class AbstractTaskRedisPubSubSourceTaskIT extends AbstractSourceTaskIntegrationTest<RedisPubSubSourceTask> {
-  private static final Logger log = LoggerFactory.getLogger(AbstractTaskRedisPubSubSourceTaskIT.class);
+public abstract class RedisPubSubSourceTaskIT extends AbstractSourceTaskIntegrationTest<RedisPubSubSourceTask> {
+  private static final Logger log = LoggerFactory.getLogger(RedisPubSubSourceTaskIT.class);
 
   @Override
   protected RedisPubSubSourceTask createTask() {
@@ -122,6 +126,7 @@ public abstract class AbstractTaskRedisPubSubSourceTaskIT extends AbstractSource
               .publish(channel.getBytes(StandardCharsets.UTF_8), v))
           .forEach(futures::add);
     });
+
     LettuceFutures.awaitAll(30, TimeUnit.SECONDS, futures.stream().toArray(RedisFuture[]::new));
 
     session.close();
@@ -144,10 +149,34 @@ public abstract class AbstractTaskRedisPubSubSourceTaskIT extends AbstractSource
   }
 
 
-  @AfterEach
-  public void after() {
-    if (null != this.task) {
-      this.task.stop();
+  @Compose(
+      dockerComposePath = "src/test/resources/docker/standard/docker-compose.yml",
+      clusterHealthCheck = RedisStandardHealthCheck.class
+  )
+  public static class Standard extends RedisPubSubSourceTaskIT {
+    @Override
+    protected ConnectionHelper createConnectionHelper(Cluster cluster) {
+      return new ConnectionHelper.Standard(cluster);
+    }
+  }
+  @Compose(
+      dockerComposePath = "src/test/resources/docker/sentinel/docker-compose.yml",
+      clusterHealthCheck = RedisSentinelHealthCheck.class
+  )
+  public static class Sentinel extends RedisPubSubSourceTaskIT {
+    @Override
+    protected ConnectionHelper createConnectionHelper(Cluster cluster) {
+      return new ConnectionHelper.Sentinel(cluster);
+    }
+  }
+  @Compose(
+      dockerComposePath = "src/test/resources/docker/cluster/docker-compose.yml",
+      clusterHealthCheck = RedisClusterHealthCheck.class
+  )
+  public static class RedisCluster extends RedisPubSubSourceTaskIT {
+    @Override
+    protected ConnectionHelper createConnectionHelper(Cluster cluster) {
+      return new ConnectionHelper.RedisCluster(cluster);
     }
   }
 

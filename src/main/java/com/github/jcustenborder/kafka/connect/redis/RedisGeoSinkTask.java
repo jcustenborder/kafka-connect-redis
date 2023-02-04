@@ -29,29 +29,13 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 
-public class RedisGeoSinkTask extends AbstractRedisCacheSinkTask<RedisSinkConnectorConfig> {
+public class RedisGeoSinkTask extends AbstractRedisCacheSinkTask<RedisGeoSinkConnectorConfig> {
   private static final Logger log = LoggerFactory.getLogger(RedisGeoSinkTask.class);
 
   @Override
-  protected RedisSinkConnectorConfig config(Map<String, String> settings) {
-    return new RedisSinkConnectorConfig(settings);
+  protected RedisGeoSinkConnectorConfig config(Map<String, String> settings) {
+    return new RedisGeoSinkConnectorConfig(settings);
   }
-
-//  SinkOperation.GeoSetKey fromStructKey(Struct struct) {
-//    byte[] key;
-//    byte[] member;
-//    Object fieldValue = struct.get("key");
-//    key = toBytes("struct.key", fieldValue);
-//    fieldValue = struct.get("member");
-//    member = toBytes("struct.member", fieldValue);
-//    return SinkOperation.GeoSetKey.of(key, member);
-//  }
-//
-//  SinkOperation.Location fromStructValue(Struct struct, byte[] member) {
-//    Number latitude = (Number) struct.get("latitude");
-//    Number longitude = (Number) struct.get("longitude");
-//    return SinkOperation.Location.of(longitude.doubleValue(), latitude.doubleValue(), member);
-//  }
 
   Number number(Object value) {
     if (value instanceof Number) {
@@ -136,5 +120,7 @@ public class RedisGeoSinkTask extends AbstractRedisCacheSinkTask<RedisSinkConnec
       }
       this.futures.add(future);
     }
+    log.debug("put() - Added {} future(s).", this.futures.size());
+
   }
 }

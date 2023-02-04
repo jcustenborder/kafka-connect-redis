@@ -15,9 +15,14 @@
  */
 package com.github.jcustenborder.kafka.connect.redis;
 
+import com.github.jcustenborder.docker.junit5.Compose;
+import com.github.jcustenborder.kafka.connect.redis.healthchecks.RedisClusterHealthCheck;
+import com.github.jcustenborder.kafka.connect.redis.healthchecks.RedisSentinelHealthCheck;
+import com.github.jcustenborder.kafka.connect.redis.healthchecks.RedisStandardHealthCheck;
 import com.google.common.base.Charsets;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
+import com.palantir.docker.compose.connection.Cluster;
 import io.lettuce.core.LettuceFutures;
 import io.lettuce.core.RedisFuture;
 import io.lettuce.core.api.StatefulRedisConnection;
@@ -26,7 +31,6 @@ import org.apache.kafka.clients.consumer.OffsetAndMetadata;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.connect.data.Schema;
 import org.apache.kafka.connect.sink.SinkRecord;
-import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.slf4j.Logger;
@@ -57,8 +61,8 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-public abstract class AbstractTaskRedisCacheSinkTaskIT extends AbstractSinkTaskIntegrationTest<RedisCacheSinkTask> {
-  private static final Logger log = LoggerFactory.getLogger(AbstractTaskRedisCacheSinkTaskIT.class);
+public abstract class RedisCacheSinkTaskIT extends AbstractSinkTaskIntegrationTest<RedisCacheSinkTask> {
+  private static final Logger log = LoggerFactory.getLogger(RedisCacheSinkTaskIT.class);
 
   @Override
   protected RedisCacheSinkTask createTask() {
@@ -233,7 +237,7 @@ public abstract class AbstractTaskRedisCacheSinkTaskIT extends AbstractSinkTaskI
     final List<SinkRecord> writes = locations.stream()
         .map(l -> structWrite(l, this.topic, 1, offset))
         .collect(Collectors.toList());
-    final Map<TopicPartition, OffsetAndMetadata> offsets = offsets(writes);
+    final Map<TopicPartition, OffsetAndMetadata> offsets = TestUtils.offsets(writes);
     this.task.put(writes);
     this.task.flush(offsets);
 
@@ -321,7 +325,7 @@ public abstract class AbstractTaskRedisCacheSinkTaskIT extends AbstractSinkTaskI
         .map(l -> structWrite(l, topic, 1, offset))
         .collect(Collectors.toList());
     this.task.put(writes);
-    Map<TopicPartition, OffsetAndMetadata> offsets = offsets(writes);
+    Map<TopicPartition, OffsetAndMetadata> offsets = TestUtils.offsets(writes);
     this.task.flush(offsets);
     assertOffsets(offsets);
 
@@ -353,7 +357,7 @@ public abstract class AbstractTaskRedisCacheSinkTaskIT extends AbstractSinkTaskI
         .collect(Collectors.toList());
 
     this.task.put(deletes);
-    offsets = offsets(deletes);
+    offsets = TestUtils.offsets(deletes);
     this.task.flush(offsets);
     assertOffsets(offsets);
 
@@ -376,11 +380,36 @@ public abstract class AbstractTaskRedisCacheSinkTaskIT extends AbstractSinkTaskI
 
   }
 
-  @AfterEach
-  public void after() {
-    if (null != this.task) {
-      this.task.stop();
+
+  @Compose(
+      dockerComposePath = "src/test/resources/docker/standard/docker-compose.yml",
+      clusterHealthCheck = RedisStandardHealthCheck.class
+  )
+  public static class Standard extends RedisCacheSinkTaskIT {
+    @Override
+    protected ConnectionHelper createConnectionHelper(Cluster cluster) {
+      return new ConnectionHelper.Standard(cluster);
     }
   }
 
+  @Compose(
+      dockerComposePath = "src/test/resources/docker/sentinel/docker-compose.yml",
+      clusterHealthCheck = RedisSentinelHealthCheck.class
+  )
+  public static class Sentinel extends RedisCacheSinkTaskIT {
+    @Override
+    protected ConnectionHelper createConnectionHelper(Cluster cluster) {
+      return new ConnectionHelper.Sentinel(cluster);
+    }
+  }
+  @Compose(
+      dockerComposePath = "src/test/resources/docker/cluster/docker-compose.yml",
+      clusterHealthCheck = RedisClusterHealthCheck.class
+  )
+  public static class RedisCluster extends RedisCacheSinkTaskIT {
+    @Override
+    protected ConnectionHelper createConnectionHelper(Cluster cluster) {
+      return new ConnectionHelper.RedisCluster(cluster);
+    }
+  }
 }

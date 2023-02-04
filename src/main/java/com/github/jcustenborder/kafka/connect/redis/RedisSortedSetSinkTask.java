@@ -23,12 +23,12 @@ import org.slf4j.LoggerFactory;
 import java.util.Collection;
 import java.util.Map;
 
-public class RedisSortedSetSinkTask extends AbstractRedisCacheSinkTask<RedisSinkConnectorConfig> {
+public class RedisSortedSetSinkTask extends AbstractRedisCacheSinkTask<RedisCacheSinkConnectorConfig> {
   private static final Logger log = LoggerFactory.getLogger(RedisSortedSetSinkTask.class);
 
   @Override
-  protected RedisSinkConnectorConfig config(Map<String, String> settings) {
-    return new RedisSinkConnectorConfig(settings);
+  protected RedisCacheSinkConnectorConfig config(Map<String, String> settings) {
+    return new RedisCacheSinkConnectorConfig(settings);
   }
 
   @Override
@@ -49,6 +49,7 @@ public class RedisSortedSetSinkTask extends AbstractRedisCacheSinkTask<RedisSink
 
       final byte[] value = toBytes("value", record.value());
       if (null == value) {
+//        this.session.asyncCommands().srem()
 //        sinkOperations.srem(key);
       } else {
 //        sinkOperations.sadd(key, value);

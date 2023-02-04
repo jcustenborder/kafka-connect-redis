@@ -29,6 +29,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.InOrder;
 import org.mockito.Mockito;
+import org.mockito.invocation.InvocationOnMock;
+import org.mockito.stubbing.Answer;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -81,17 +83,17 @@ public class RedisCacheSinkTaskTest {
     this.task = new RedisCacheSinkTask();
     this.task.session = mock(RedisClusterSession.class);
     this.asyncCommands = mock(RedisAdvancedClusterAsyncCommands.class, withSettings().verboseLogging());
-    when(task.session.asyncCommands()).thenReturn(asyncCommands);
 
-    RedisFuture<String> setFuture = mock(RedisFuture.class);
-    when(setFuture.await(anyLong(), any(TimeUnit.class))).thenReturn(true);
-    RedisFuture<Long> deleteFuture = mock(RedisFuture.class);
-    when(deleteFuture.await(anyLong(), any(TimeUnit.class))).thenReturn(true);
-    when(asyncCommands.mset(anyMap())).thenReturn(setFuture);
-    when(asyncCommands.del(any())).thenReturn(deleteFuture);
-    task.config = new RedisSinkConnectorConfig(
-        ImmutableMap.of()
-    );
+    Answer<?> answer = (Answer<Object>) invocationOnMock -> {
+      RedisFuture<?> future = mock(RedisFuture.class, withSettings().verboseLogging());
+      return future;
+    };
+
+    when(this.asyncCommands.set(any(), any())).thenAnswer(answer);
+    when(this.asyncCommands.psetex(any(), anyLong(), any())).thenAnswer(answer);
+
+
+    task.config = new RedisCacheSinkConnectorConfig(ImmutableMap.of());
   }
 
 

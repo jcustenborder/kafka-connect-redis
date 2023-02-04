@@ -22,18 +22,17 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.Collection;
-import java.util.LinkedHashMap;
 import java.util.Map;
 
 import static com.github.jcustenborder.kafka.connect.redis.Utils.formatLocation;
 import static com.github.jcustenborder.kafka.connect.redis.Utils.logLocation;
 
-public class RedisMapSinkTask extends AbstractRedisCacheSinkTask<RedisSinkConnectorConfig> {
+public class RedisMapSinkTask extends AbstractRedisCacheSinkTask<RedisCacheSinkConnectorConfig> {
   private static final Logger log = LoggerFactory.getLogger(RedisMapSinkTask.class);
 
   @Override
-  protected RedisSinkConnectorConfig config(Map<String, String> settings) {
-    return new RedisSinkConnectorConfig(settings);
+  protected RedisCacheSinkConnectorConfig config(Map<String, String> settings) {
+    return new RedisCacheSinkConnectorConfig(settings);
   }
 
   @Override
@@ -53,32 +52,59 @@ public class RedisMapSinkTask extends AbstractRedisCacheSinkTask<RedisSinkConnec
         );
       }
 
+
       if (null == record.value()) {
-//        sinkOperations.hdel(key);
+        futures.add(
+            this.session.asyncCommands().del(key)
+                .exceptionally(exceptionally(record))
+                .toCompletableFuture()
+        );
       } else if (record.value() instanceof Struct) {
         Struct struct = (Struct) record.value();
-        Map<byte[], byte[]> mapValues = new LinkedHashMap<>();
         struct.schema().fields().forEach(field -> {
           Object v = struct.get(field);
           byte[] fieldKey = toBytes("field.key", field.name());
-          byte[] fieldValue = toBytes("field.value", v);
-          mapValues.put(fieldKey, fieldValue);
+          if (null != v) {
+            futures.add(
+                this.session.asyncCommands().hdel(key, fieldKey)
+                    .exceptionally(exceptionally(record))
+                    .toCompletableFuture()
+            );
+          } else {
+            byte[] fieldValue = toBytes("field.value", v.toString());
+            futures.add(
+                this.session.asyncCommands().hset(key, fieldKey, fieldValue)
+                    .exceptionally(exceptionally(record))
+                    .toCompletableFuture()
+            );
+          }
         });
-//        sinkOperations.hset(key, mapValues);
+
       } else if (record.value() instanceof Map) {
-        Map map = (Map) record.value();
-        Map<byte[], byte[]> mapValues = new LinkedHashMap<>();
+        Map<String, Object> map = (Map) record.value();
         map.forEach((k, v) -> {
           byte[] fieldKey = toBytes("field.key", k);
-          byte[] fieldValue = toBytes("field.value", v);
-          mapValues.put(fieldKey, fieldValue);
+          if (null != v) {
+            futures.add(
+                this.session.asyncCommands().hdel(key, fieldKey)
+                    .exceptionally(exceptionally(record))
+                    .toCompletableFuture()
+            );
+          } else {
+            byte[] fieldValue = toBytes("field.value", v.toString());
+            futures.add(
+                this.session.asyncCommands().hset(key, fieldKey, fieldValue)
+                    .exceptionally(exceptionally(record))
+                    .toCompletableFuture()
+            );
+          }
         });
-//        sinkOperations.hset(key, mapValues);
       } else {
         throw new DataException(
             "The value for the record must be a Struct or Map." + formatLocation(record)
         );
       }
     }
+    log.debug("put() - Added {} future(s).", this.futures.size());
   }
 }

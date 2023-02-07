@@ -16,7 +16,6 @@
 package com.github.jcustenborder.kafka.connect.redis.healthchecks;
 
 import com.palantir.docker.compose.connection.Cluster;
-import com.palantir.docker.compose.connection.waiting.ClusterHealthCheck;
 import com.palantir.docker.compose.connection.waiting.SuccessOrFailure;
 import io.lettuce.core.RedisURI;
 import io.lettuce.core.cluster.RedisClusterClient;
@@ -28,7 +27,6 @@ import org.slf4j.LoggerFactory;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.StringReader;
-import java.util.Date;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -37,7 +35,7 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
-public class RedisClusterHealthCheck implements ClusterHealthCheck {
+public class RedisClusterHealthCheck extends AbstractRedisHealthCheck {
   private static final Logger log = LoggerFactory.getLogger(RedisClusterHealthCheck.class);
 
 
@@ -91,12 +89,7 @@ public class RedisClusterHealthCheck implements ClusterHealthCheck {
             return false;
           }
 
-          String roundTrip = Long.toString(new Date().getTime());
-
-          syncCommands.set("healthcheck", roundTrip);
-          String result = syncCommands.get("healthcheck");
-          return roundTrip.equals(result);
-//          return true;
+          return testKeys(syncCommands);
         }
       }
     });

@@ -18,7 +18,6 @@ package com.github.jcustenborder.kafka.connect.redis.healthchecks;
 import com.palantir.docker.compose.connection.Cluster;
 import com.palantir.docker.compose.connection.Container;
 import com.palantir.docker.compose.connection.DockerPort;
-import com.palantir.docker.compose.connection.waiting.ClusterHealthCheck;
 import com.palantir.docker.compose.connection.waiting.SuccessOrFailure;
 import io.lettuce.core.RedisClient;
 import io.lettuce.core.RedisURI;
@@ -27,7 +26,7 @@ import io.lettuce.core.api.sync.RedisCommands;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public class RedisStandardHealthCheck implements ClusterHealthCheck {
+public class RedisStandardHealthCheck extends AbstractRedisHealthCheck {
   private static final Logger log = LoggerFactory.getLogger(RedisStandardHealthCheck.class);
 
   @Override
@@ -49,8 +48,7 @@ public class RedisStandardHealthCheck implements ClusterHealthCheck {
           String ping = syncCommands.ping();
           log.info("ping = {}", ping);
 
-
-          return true;
+          return testKeys(syncCommands);
         }
       }
     });

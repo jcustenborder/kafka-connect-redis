@@ -18,6 +18,7 @@ package com.github.jcustenborder.kafka.connect.redis;
 import com.google.common.base.Charsets;
 import com.google.common.base.Strings;
 import io.lettuce.core.api.StatefulRedisConnection;
+import io.lettuce.core.api.async.RedisAsyncCommands;
 import io.lettuce.core.cluster.api.async.RedisClusterAsyncCommands;
 import io.lettuce.core.pubsub.api.async.RedisPubSubAsyncCommands;
 import org.apache.kafka.connect.data.Schema;
@@ -39,11 +40,10 @@ public abstract class AbstractSinkTaskTest<TASK extends AbstractRedisSinkTask> {
 
   protected abstract TASK createTask();
 
-  protected RedisClusterSession<byte[], byte[]> redisClusterSession;
-  protected RedisPubSubSession<byte[], byte[]> redisPubSubSession;
+  protected RedisSession redisClusterSession;
+  protected RedisPubSubSession redisPubSubSession;
 
-  protected StatefulRedisConnection<byte[], byte[]> redisConnection;
-  protected RedisClusterAsyncCommands<byte[], byte[]> redisCommands;
+  protected RedisAsyncCommands<byte[], byte[]> redisCommands;
 
   protected RedisPubSubAsyncCommands<byte[], byte[]> redisPubSubAsyncCommands;
   @BeforeEach
@@ -55,15 +55,13 @@ public abstract class AbstractSinkTaskTest<TASK extends AbstractRedisSinkTask> {
     this.task.initialize(this.context);
     this.task.sessionFactory = mock(RedisSessionFactory.class);
 
-    this.redisClusterSession = mock(RedisClusterSession.class);
-    this.redisConnection = mock(StatefulRedisConnection.class);
-    when(this.redisClusterSession.connection()).thenReturn(this.redisConnection);
-    this.redisCommands = mock(RedisClusterAsyncCommands.class);
-    when(this.redisClusterSession.asyncCommands()).thenReturn(this.redisCommands);
+    this.redisClusterSession = mock(RedisSession.class);
+    this.redisCommands = mock(RedisAsyncCommands.class);
+//    when(this.redisClusterSession.asyncCommands()).thenReturn(this.redisCommands);
 
     this.redisPubSubSession = mock(RedisPubSubSession.class);
     when(this.task.sessionFactory.createPubSubSession(any())).thenReturn(this.redisPubSubSession);
-    when(this.task.sessionFactory.createClusterSession(any())).thenReturn(this.redisClusterSession);
+    when(this.task.sessionFactory.createSession(any())).thenReturn(this.redisClusterSession);
 
     this.redisPubSubAsyncCommands = mock(RedisPubSubAsyncCommands.class);
     when(this.redisPubSubSession.asyncCommands()).thenReturn(this.redisPubSubAsyncCommands);

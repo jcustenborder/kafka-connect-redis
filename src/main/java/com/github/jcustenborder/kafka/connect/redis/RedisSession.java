@@ -15,12 +15,30 @@
  */
 package com.github.jcustenborder.kafka.connect.redis;
 
-import io.lettuce.core.AbstractRedisClient;
+import io.lettuce.core.api.async.RedisGeoAsyncCommands;
+import io.lettuce.core.api.async.RedisHashAsyncCommands;
+import io.lettuce.core.api.async.RedisKeyAsyncCommands;
+import io.lettuce.core.api.async.RedisSortedSetAsyncCommands;
+import io.lettuce.core.api.async.RedisStreamAsyncCommands;
+import io.lettuce.core.api.async.RedisStringAsyncCommands;
 
-public interface RedisSession<K, V, CONNECTION, COMMANDS> extends AutoCloseable {
-  AbstractRedisClient client();
+public interface RedisSession extends AutoCloseable {
+  void flushCommands();
 
-  CONNECTION connection();
 
-  COMMANDS asyncCommands();
+  void setAutoFlushCommands(boolean enabled);
+
+//  RedisAsyncCommands<byte[], byte[]> asyncCommands();
+
+  RedisGeoAsyncCommands<byte[], byte[]> geo();
+
+  RedisHashAsyncCommands<byte[], byte[]> hash();
+
+  RedisStringAsyncCommands<byte[], byte[]> string();
+
+  RedisKeyAsyncCommands<byte[], byte[]> key();
+
+  RedisSortedSetAsyncCommands<byte[], byte[]> sortedSet();
+
+  RedisStreamAsyncCommands<byte[], byte[]> streams();
 }

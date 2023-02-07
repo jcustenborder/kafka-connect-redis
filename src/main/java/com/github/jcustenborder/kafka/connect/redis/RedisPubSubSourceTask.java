@@ -15,6 +15,7 @@
  */
 package com.github.jcustenborder.kafka.connect.redis;
 
+import io.lettuce.core.LettuceFutures;
 import io.lettuce.core.cluster.models.partitions.RedisClusterNode;
 import io.lettuce.core.cluster.pubsub.RedisClusterPubSubListener;
 import io.lettuce.core.pubsub.RedisPubSubListener;
@@ -25,7 +26,11 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
 
 public class RedisPubSubSourceTask extends AbstractRedisPubSubSourceTask<RedisPubSubSourceConnectorConfig>
     implements RedisPubSubListener<byte[], byte[]>, RedisClusterPubSubListener<byte[], byte[]> {
@@ -34,31 +39,40 @@ public class RedisPubSubSourceTask extends AbstractRedisPubSubSourceTask<RedisPu
   @Override
   public void start(Map<String, String> settings) {
     super.start(settings);
-    this.session.connection().addListener(this);
+    this.pubSubSession.addPubSubListener(this);
+    this.pubSubSession.addClusterPubSubListener(this);
+
+    List<CompletableFuture<?>> futures = new ArrayList<>();
 
     byte[][] subscribeChannels = this.config.channels.stream()
         .map(s -> s.getBytes(this.config.charset))
         .toArray(byte[][]::new);
     if (subscribeChannels.length > 0) {
       log.info("start() - Subscribing to {}", this.config.channels);
-      this.session.asyncCommands().subscribe(subscribeChannels);
+      futures.add(
+          this.pubSubSession.asyncCommands().subscribe(subscribeChannels)
+              .exceptionally(e -> {
+                log.error("start() - error while calling subscribe", e);
+                return null;
+              })
+              .toCompletableFuture()
+      );
     }
     byte[][] subscribePatterns = this.config.channelPatterns.stream()
         .map(s -> s.getBytes(this.config.charset))
         .toArray(byte[][]::new);
     if (subscribePatterns.length > 0) {
       log.info("start() - Subscribing to patterns {}", this.config.channelPatterns);
-      switch (this.config.clientMode) {
-        case Standalone:
-          this.session.asyncCommands().psubscribe(subscribePatterns);
-          break;
-        case Cluster:
-
-          break;
-      }
-
-
+      futures.add(
+          this.pubSubSession.asyncCommands().psubscribe(subscribePatterns)
+              .exceptionally(e -> {
+                log.error("start() - error while calling psubscribe()", e);
+                return null;
+              })
+              .toCompletableFuture()
+      );
     }
+    LettuceFutures.awaitAll(30, TimeUnit.SECONDS, futures.toArray(new CompletableFuture<?>[0]));
   }
 
   @Override

@@ -29,14 +29,18 @@ import java.util.Map;
 public abstract class AbstractRedisSourceTask<CONFIG extends RedisSourceConnectorConfig> extends SourceTask {
   private static final Logger log = LoggerFactory.getLogger(AbstractRedisSourceTask.class);
   protected CONFIG config;
-  RedisSessionFactory sessionFactory = new RedisSessionFactoryImpl();
   protected SourceRecordDeque records;
+  protected RedisSessionFactory sessionFactory = new RedisSessionFactoryImpl();
+
 
   protected abstract CONFIG config(Map<String, String> settings);
 
-  protected void setup(CONFIG config) {
+  @Override
+  public void start(Map<String, String> settings) {
+    this.config = config(settings);
     this.records = SourceRecordDequeBuilder.of()
-        .batchSize(1024)
+        .emptyWaitMs(100)
+        .batchSize(16384)
         .build();
   }
 
@@ -49,4 +53,6 @@ public abstract class AbstractRedisSourceTask<CONFIG extends RedisSourceConnecto
   public String version() {
     return VersionUtil.version(this.getClass());
   }
+
+
 }

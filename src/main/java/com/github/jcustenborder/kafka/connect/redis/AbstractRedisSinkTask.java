@@ -43,8 +43,8 @@ public abstract class AbstractRedisSinkTask<CONFIG extends RedisConnectorConfig>
   private static final Logger log = LoggerFactory.getLogger(AbstractRedisSinkTask.class);
   protected List<CompletableFuture<?>> futures;
   protected CONFIG config;
-  protected RedisClusterSession<byte[], byte[]> session;
-  RedisSessionFactory sessionFactory = new RedisSessionFactoryImpl();
+  protected RedisSessionFactory sessionFactory = new RedisSessionFactoryImpl();
+  protected RedisSession session;
 
   protected abstract CONFIG config(Map<String, String> settings);
 
@@ -56,7 +56,7 @@ public abstract class AbstractRedisSinkTask<CONFIG extends RedisConnectorConfig>
   @Override
   public void start(Map<String, String> settings) {
     this.config = config(settings);
-    this.session = this.sessionFactory.createClusterSession(this.config);
+    this.session = this.sessionFactory.createSession(this.config);
     this.futures = new ArrayList<>(64000);
 
     final Set<TopicPartition> assignment = this.context.assignment();
@@ -125,7 +125,7 @@ public abstract class AbstractRedisSinkTask<CONFIG extends RedisConnectorConfig>
             topic -> {
               String topicKey = String.format("__kafka.offsets.%s", topic);
               log.debug("retrieveOffsets() - Calling hgetall('{}')", topicKey);
-              return this.session.asyncCommands().hgetall(topicKey.getBytes(StandardCharsets.UTF_8))
+              return this.session.hash().hgetall(topicKey.getBytes(StandardCharsets.UTF_8))
                   .thenAccept(value -> {
                     log.debug("retrieveOffsets() - topic = '{}'", topic);
                     if (null == value || value.isEmpty()) {
@@ -168,15 +168,19 @@ public abstract class AbstractRedisSinkTask<CONFIG extends RedisConnectorConfig>
         .map(topicPartition -> {
           String topicPartitionKey = String.format("__kafka.offset.%s.%s", topicPartition.topic(), topicPartition.partition());
           log.debug("retrieveLegacyOffsets() - Calling get('{}')", topicPartitionKey);
-          return this.session.asyncCommands().get(topicPartitionKey.getBytes(StandardCharsets.UTF_8))
+          return this.session.string().get(topicPartitionKey.getBytes(StandardCharsets.UTF_8))
               .thenAccept(b -> {
-                String value = new String(b, StandardCharsets.UTF_8);
-                Long offset = Long.parseLong(value);
-                log.debug("retrieveLegacyOffsets() - Adding offset {}:{}", topicPartition, offset);
-                offsets.put(topicPartition, offset);
+                if (null != b) {
+                  String value = new String(b, StandardCharsets.UTF_8);
+                  Long offset = Long.parseLong(value);
+                  log.debug("retrieveLegacyOffsets() - Adding offset {}:{}", topicPartition, offset);
+                  offsets.put(topicPartition, offset);
+                } else {
+                  log.trace("retrieveLegacyOffsets() - No value found for get('{}')", topicPartitionKey);
+                }
               }).exceptionally(ex -> {
                 errorCount.incrementAndGet();
-                log.error("Exception thrown calling get('{}')", topicPartitionKey);
+                log.error("Exception thrown calling get('{}')", topicPartitionKey, ex);
                 return null;
               }).toCompletableFuture();
         }).toArray(CompletableFuture<?>[]::new);
@@ -208,12 +212,11 @@ public abstract class AbstractRedisSinkTask<CONFIG extends RedisConnectorConfig>
 
     topicToPartitionAndOffsets.forEach((topic, offsets) -> {
       byte[] topicKey = String.format("__kafka.offsets.%s", topic).getBytes(StandardCharsets.UTF_8);
-      CompletableFuture<?> future = this.session.asyncCommands().hset(topicKey, offsets).toCompletableFuture();
+      CompletableFuture<?> future = this.session.hash().hset(topicKey, offsets).toCompletableFuture();
       this.futures.add(future);
     });
 
-    log.debug("flush() - Calling connection().flushCommands()");
-    this.session.connection().flushCommands();
+    this.session.flushCommands();
     log.debug("flush() - Waiting for {} commands to complete.", futures.size());
     LettuceFutures.awaitAll(
         30000,

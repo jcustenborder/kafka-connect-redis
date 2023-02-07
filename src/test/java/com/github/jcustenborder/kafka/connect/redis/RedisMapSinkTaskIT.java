@@ -130,14 +130,14 @@ public abstract class RedisMapSinkTaskIT extends AbstractSinkTaskIntegrationTest
       byte[] key = location.ident.getBytes(StandardCharsets.UTF_8);
 
       futures.add(
-          this.task.session.asyncCommands().hgetall(key).thenAccept(byteMap -> {
+          this.task.session.hash().hgetall(key).thenAccept(byteMap -> {
             foundLocations.incrementAndGet();
 
           }).toCompletableFuture()
       );
     }
 
-    this.task.session.connection().flushCommands();
+    this.task.session.flushCommands();
     LettuceFutures.awaitAll(30, TimeUnit.SECONDS, futures.toArray(new CompletableFuture<?>[futures.size()]));
     assertEquals(locations.size(), foundLocations.get());
 
@@ -147,10 +147,10 @@ public abstract class RedisMapSinkTaskIT extends AbstractSinkTaskIntegrationTest
     final AtomicLong results = new AtomicLong(0);
     CompletableFuture<?>[] futures = locations.stream()
         .map(e -> e.ident.getBytes(StandardCharsets.UTF_8))
-        .map(b-> this.task.session.asyncCommands().exists(b).thenAccept(results::addAndGet).toCompletableFuture())
+        .map(b-> this.task.session.key().exists(b).thenAccept(results::addAndGet).toCompletableFuture())
         .toArray(CompletableFuture<?>[]::new);
     log.info("Waiting for {} futures", futures.length);
-    this.task.session.connection().flushCommands();
+    this.task.session.flushCommands();
     LettuceFutures.awaitAll(30, TimeUnit.SECONDS, futures);
     assertEquals(0, results.get());
   }
@@ -181,38 +181,5 @@ public abstract class RedisMapSinkTaskIT extends AbstractSinkTaskIntegrationTest
     this.task.flush(offsets);
 
     assertNotExists(locations);
-  }
-
-
-  @Compose(
-      dockerComposePath = "src/test/resources/docker/standard/docker-compose.yml",
-      clusterHealthCheck = RedisStandardHealthCheck.class
-  )
-  public static class Standard extends RedisMapSinkTaskIT {
-    @Override
-    protected ConnectionHelper createConnectionHelper(Cluster cluster) {
-      return new ConnectionHelper.Standard(cluster);
-    }
-  }
-
-  @Compose(
-      dockerComposePath = "src/test/resources/docker/sentinel/docker-compose.yml",
-      clusterHealthCheck = RedisSentinelHealthCheck.class
-  )
-  public static class Sentinel extends RedisMapSinkTaskIT {
-    @Override
-    protected ConnectionHelper createConnectionHelper(Cluster cluster) {
-      return new ConnectionHelper.Sentinel(cluster);
-    }
-  }
-  @Compose(
-      dockerComposePath = "src/test/resources/docker/cluster/docker-compose.yml",
-      clusterHealthCheck = RedisClusterHealthCheck.class
-  )
-  public static class RedisCluster extends RedisMapSinkTaskIT {
-    @Override
-    protected ConnectionHelper createConnectionHelper(Cluster cluster) {
-      return new ConnectionHelper.RedisCluster(cluster);
-    }
   }
 }

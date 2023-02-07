@@ -17,15 +17,13 @@
 version: "3"
 services:
   redis:
-    image: grokzen/redis-cluster:6.0.16
-    environment:
-      IP: "0.0.0.0"
-      INITIAL_PORT: "9000"
+    build: redis-cluster
+#    network_mode: host
     ports:
-     - "9000:9000"
-     - "9001:9001"
-     - "9002:9002"
-     - "9003:9003"
-     - "9004:9004"
-     - "9005:9005"
+     - "50000:50000"
+     - "50001:50001"
+     - "50002:50002"
+     - "50003:50003"
+     - "50004:50004"
+     - "50005:50005"
 

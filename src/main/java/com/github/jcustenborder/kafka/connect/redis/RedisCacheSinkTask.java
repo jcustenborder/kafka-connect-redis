@@ -47,16 +47,16 @@ public class RedisCacheSinkTask extends AbstractRedisCacheSinkTask<RedisCacheSin
 
       if (null != value) {
         if (0 == this.config.ttl) {
-          future = this.session.asyncCommands().set(key, value)
+          future = this.session.string().set(key, value)
               .exceptionally(exceptionally(record))
               .toCompletableFuture();
         } else {
-          future = this.session.asyncCommands().psetex(key, this.config.ttl, value)
+          future = this.session.string().psetex(key, this.config.ttl, value)
               .exceptionally(exceptionally(record))
               .toCompletableFuture();
         }
       } else {
-        future = this.session.asyncCommands().del(key)
+        future = this.session.key().del(key)
             .exceptionally(exceptionally(record))
             .toCompletableFuture();
       }

@@ -41,7 +41,9 @@ import java.util.Map;
     sections = {
         @DocumentationSection(title = "Additional Data Formats", text = "You might be asking, why does this connector only support the " +
             "StringConverter and the ByteArrayConverter. I really need the data to be JSON or <insert format name here>. " +
-            "")
+            "The keys for Redis need to be correct at the byte level. The safest way to accomplish this is utilize a Single Message Transformation (SMT)" +
+            "that is controlled by the user. This allows the user to make a decision of how the data is stored in Redis using configuration of the connector. " +
+            "For example data could be stored in Kafka as AVRO and you could use a SMT to convert this data to JSON as it's written to Redis.")
     }
 )
 public class RedisCacheSinkConnector extends AbstractRedisSinkConnector<RedisSinkConnectorConfig> {

@@ -21,12 +21,14 @@ import org.apache.kafka.connect.connector.Task;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.TestInfo;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
 
 public abstract class AbstractTaskIntegrationTest<TASK extends Task> {
-
+  private static final Logger log = LoggerFactory.getLogger(AbstractTaskIntegrationTest.class);
   abstract protected void setupContext();
   abstract protected TASK createTask();
 
@@ -50,6 +52,7 @@ public abstract class AbstractTaskIntegrationTest<TASK extends Task> {
   @AfterEach
   public void after() {
     if (null != this.task) {
+      log.info("Calling task.stop()");
       this.task.stop();
     }
   }

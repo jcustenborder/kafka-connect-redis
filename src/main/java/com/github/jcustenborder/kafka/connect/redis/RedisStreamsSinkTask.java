@@ -50,7 +50,7 @@ public class RedisStreamsSinkTask extends AbstractRedisCacheSinkTask<RedisSinkCo
           mapValues.put(fieldKey, fieldValue);
         });
         this.futures.add(
-            this.session.asyncCommands().xadd(
+            this.session.streams().xadd(
                     record.topic().getBytes(StandardCharsets.UTF_8),
                     mapValues
                 ).exceptionally(exceptionally(record))
@@ -65,7 +65,7 @@ public class RedisStreamsSinkTask extends AbstractRedisCacheSinkTask<RedisSinkCo
           mapValues.put(fieldKey, fieldValue);
         });
         this.futures.add(
-            this.session.asyncCommands().xadd(
+            this.session.streams().xadd(
                     record.topic().getBytes(StandardCharsets.UTF_8),
                     mapValues
                 ).exceptionally(exceptionally(record))

@@ -15,9 +15,14 @@
  */
 package com.github.jcustenborder.kafka.connect.redis;
 
-import io.lettuce.core.pubsub.StatefulRedisPubSubConnection;
+import io.lettuce.core.cluster.pubsub.RedisClusterPubSubListener;
+import io.lettuce.core.pubsub.RedisPubSubListener;
 import io.lettuce.core.pubsub.api.async.RedisPubSubAsyncCommands;
 
-public interface RedisPubSubSession<K, V> extends RedisSession<K, V, StatefulRedisPubSubConnection<K, V>, RedisPubSubAsyncCommands<K, V>> {
+public interface RedisPubSubSession extends AutoCloseable {
+  RedisPubSubAsyncCommands<byte[], byte[]> asyncCommands();
 
+  void addPubSubListener(RedisPubSubListener<byte[], byte[]> listener);
+
+  void addClusterPubSubListener(RedisClusterPubSubListener<byte[], byte[]> listener);
 }

@@ -37,6 +37,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
@@ -49,7 +50,6 @@ import java.util.stream.IntStream;
 import static com.github.jcustenborder.kafka.connect.redis.TestUtils.offsets;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.mockito.Mockito.mock;
 
 public abstract class RedisStreamsSinkTaskIT extends AbstractSinkTaskIntegrationTest<RedisStreamsSinkTask> {
   static final Schema VALUE_SCHEMA = SchemaBuilder.struct()
@@ -69,7 +69,6 @@ public abstract class RedisStreamsSinkTaskIT extends AbstractSinkTaskIntegration
   public void emptyAssignment() throws ExecutionException, InterruptedException {
     this.task.start(this.settings);
   }
-
 
 
   @Test
@@ -111,7 +110,7 @@ public abstract class RedisStreamsSinkTaskIT extends AbstractSinkTaskIntegration
   }
 
   @Test
-  public void putWrite() throws ExecutionException, InterruptedException, TimeoutException, IOException {
+  public void putWrite() throws Exception {
     this.task.start(this.settings);
 
     final List<TestLocation> locations = TestLocation.loadLocations();
@@ -123,27 +122,50 @@ public abstract class RedisStreamsSinkTaskIT extends AbstractSinkTaskIntegration
     Map<TopicPartition, OffsetAndMetadata> offsets = offsets(writes);
     this.task.flush(offsets);
 
-    XReadArgs.StreamOffset<String> startOffset =
+    XReadArgs.StreamOffset<byte[]> startOffset =
         XReadArgs.StreamOffset.from(
-            topic,
+            topic.getBytes(StandardCharsets.UTF_8),
             "0-0"
         );
 
+    try (RedisSession session = this.task.sessionFactory.createSession(this.task.config)) {
+      List<StreamMessage<byte[], byte[]>> messages = session.streams().xread(startOffset).get(30, TimeUnit.SECONDS);
+      assertNotNull(messages);
+      assertEquals(locations.size(), messages.size());
 
-    List<StreamMessage<String, String>> messages = this.connectionHelper.redisConnection().sync().xread(startOffset);
-    assertNotNull(messages);
-    assertEquals(locations.size(), messages.size());
-    IntStream.range(0, locations.size() - 1).forEach(index -> {
-      TestLocation location = locations.get(index);
-      Map<String, String> expected = ImmutableMap.of(
-          "ident", location.ident,
-          "region", location.region,
-          "latitude", Double.toString(location.latitude),
-          "longitude", Double.toString(location.longitude)
-      );
-      StreamMessage<String, String> actual = messages.get(index);
-      assertEquals(expected, actual.getBody());
-    });
+      Map<String, Map<String, String>> expected = locations
+          .stream()
+          .map(location-> ImmutableMap.of(
+              "ident", location.ident,
+              "region", location.region,
+              "latitude", Double.toString(location.latitude),
+              "longitude", Double.toString(location.longitude)
+          ))
+          .collect(
+              Collectors.toMap(
+                  e -> e.get("ident"),
+                  e -> e
+              )
+          );
+      Map<String, Map<String, String>> actual = messages
+          .stream()
+          .map(m -> m.getBody().entrySet().stream().collect(
+                  Collectors.toMap(
+                      e -> new String(e.getKey(), StandardCharsets.UTF_8),
+                      e -> new String(e.getValue(), StandardCharsets.UTF_8)
+                  )
+              )
+          ).collect(
+              Collectors.toMap(
+                  e -> e.get("ident"),
+                  e -> e
+              )
+          );
+
+      assertEquals(expected, actual);
+    }
+
+
   }
 
   StreamMessage<String, String> convert(StreamMessage<byte[], byte[]> input) {
@@ -160,7 +182,7 @@ public abstract class RedisStreamsSinkTaskIT extends AbstractSinkTaskIntegration
         .toArray(byte[][]::new);
     for (TestLocation location : locations) {
       byte[] key = location.ident.getBytes(Charsets.UTF_8);
-      Map<String, String> actual = this.task.session.asyncCommands().hmget(key, fieldNames)
+      Map<String, String> actual = this.task.session.hash().hmget(key, fieldNames)
           .get(30, TimeUnit.SECONDS)
           .stream()
           .map(TestUtils::toString)
@@ -179,7 +201,7 @@ public abstract class RedisStreamsSinkTaskIT extends AbstractSinkTaskIntegration
     byte[][] keys = locations.stream()
         .map(e -> e.ident.getBytes(Charsets.UTF_8))
         .toArray(byte[][]::new);
-    final long written = this.task.session.asyncCommands().exists(keys).get();
+    final long written = this.task.session.key().exists(keys).get();
     assertEquals(0, written);
   }
 
@@ -200,39 +222,4 @@ public abstract class RedisStreamsSinkTaskIT extends AbstractSinkTaskIntegration
     this.task.put(deletes);
     assertNotExists(locations);
   }
-
-
-
-  @Compose(
-      dockerComposePath = "src/test/resources/docker/standard/docker-compose.yml",
-      clusterHealthCheck = RedisStandardHealthCheck.class
-  )
-  public static class Standard extends RedisStreamsSinkTaskIT {
-    @Override
-    protected ConnectionHelper createConnectionHelper(Cluster cluster) {
-      return new ConnectionHelper.Standard(cluster);
-    }
-  }
-
-  @Compose(
-      dockerComposePath = "src/test/resources/docker/sentinel/docker-compose.yml",
-      clusterHealthCheck = RedisSentinelHealthCheck.class
-  )
-  public static class Sentinel extends RedisStreamsSinkTaskIT {
-    @Override
-    protected ConnectionHelper createConnectionHelper(Cluster cluster) {
-      return new ConnectionHelper.Sentinel(cluster);
-    }
-  }
-  @Compose(
-      dockerComposePath = "src/test/resources/docker/cluster/docker-compose.yml",
-      clusterHealthCheck = RedisClusterHealthCheck.class
-  )
-  public static class RedisCluster extends RedisStreamsSinkTaskIT {
-    @Override
-    protected ConnectionHelper createConnectionHelper(Cluster cluster) {
-      return new ConnectionHelper.RedisCluster(cluster);
-    }
-  }
-
 }

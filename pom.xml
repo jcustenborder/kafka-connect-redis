@@ -26,7 +26,7 @@
         <version>2.8.0-1</version>
     </parent>
     <artifactId>kafka-connect-redis</artifactId>
-    <version>0.1-SNAPSHOT</version>
+    <version>0.2-SNAPSHOT</version>
     <name>kafka-connect-redis</name>
     <description>A Kafka Connect plugin for interacting with Redis.</description>
     <url>https://github.com/jcustenborder/kafka-connect-redis</url>

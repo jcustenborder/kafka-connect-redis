@@ -55,7 +55,7 @@ public class RedisMapSinkTask extends AbstractRedisCacheSinkTask<RedisCacheSinkC
 
       if (null == record.value()) {
         futures.add(
-            this.session.asyncCommands().del(key)
+            this.session.key().del(key)
                 .exceptionally(exceptionally(record))
                 .toCompletableFuture()
         );
@@ -66,14 +66,14 @@ public class RedisMapSinkTask extends AbstractRedisCacheSinkTask<RedisCacheSinkC
           byte[] fieldKey = toBytes("field.key", field.name());
           if (null != v) {
             futures.add(
-                this.session.asyncCommands().hdel(key, fieldKey)
+                this.session.hash().hdel(key, fieldKey)
                     .exceptionally(exceptionally(record))
                     .toCompletableFuture()
             );
           } else {
             byte[] fieldValue = toBytes("field.value", v.toString());
             futures.add(
-                this.session.asyncCommands().hset(key, fieldKey, fieldValue)
+                this.session.hash().hset(key, fieldKey, fieldValue)
                     .exceptionally(exceptionally(record))
                     .toCompletableFuture()
             );
@@ -86,14 +86,14 @@ public class RedisMapSinkTask extends AbstractRedisCacheSinkTask<RedisCacheSinkC
           byte[] fieldKey = toBytes("field.key", k);
           if (null != v) {
             futures.add(
-                this.session.asyncCommands().hdel(key, fieldKey)
+                this.session.hash().hdel(key, fieldKey)
                     .exceptionally(exceptionally(record))
                     .toCompletableFuture()
             );
           } else {
             byte[] fieldValue = toBytes("field.value", v.toString());
             futures.add(
-                this.session.asyncCommands().hset(key, fieldKey, fieldValue)
+                this.session.hash().hset(key, fieldKey, fieldValue)
                     .exceptionally(exceptionally(record))
                     .toCompletableFuture()
             );

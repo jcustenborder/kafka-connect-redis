@@ -115,7 +115,8 @@ public class RedisCacheSinkTaskReconnectIT {
     final byte[][] keys = expected.keySet().stream()
         .map(s -> s.getBytes(Charsets.UTF_8))
         .toArray(byte[][]::new);
-    RedisFuture<List<KeyValue<byte[], byte[]>>> result = this.task.session.asyncCommands().mget(keys);
+    //TODO: Redo this because we might not be able to do mget with cluster, etc
+    RedisFuture<List<KeyValue<byte[], byte[]>>> result = this.task.session.string().mget(keys);
     List<KeyValue<byte[], byte[]>> actual = result.get();
     assertEquals(count, actual.size());
     for (KeyValue<byte[], byte[]> kv : actual) {

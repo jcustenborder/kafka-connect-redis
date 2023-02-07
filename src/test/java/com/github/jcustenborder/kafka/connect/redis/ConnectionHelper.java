@@ -22,6 +22,7 @@ import io.lettuce.core.RedisClient;
 import io.lettuce.core.RedisURI;
 import io.lettuce.core.api.StatefulRedisConnection;
 import io.lettuce.core.cluster.RedisClusterClient;
+import io.lettuce.core.cluster.api.StatefulRedisClusterConnection;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -29,7 +30,7 @@ import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
-abstract class ConnectionHelper {
+public abstract class ConnectionHelper {
   protected final Cluster cluster;
 
   ConnectionHelper(Cluster cluster) {
@@ -38,7 +39,6 @@ abstract class ConnectionHelper {
 
   public abstract void appendSettings(Map<String, String> settings);
 
-  public abstract StatefulRedisConnection<String, String> redisConnection();
 
   public static final class Standard extends ConnectionHelper {
     public Standard(Cluster cluster) {
@@ -52,20 +52,6 @@ abstract class ConnectionHelper {
       settings.put(RedisPubSubSourceConnectorConfig.HOSTS_CONFIG, String.format("%s:%s", redisPort.getIp(), redisPort.getExternalPort()));
       settings.put(RedisPubSubSourceConnectorConfig.CLIENT_MODE_CONFIG, RedisConnectorConfig.ClientMode.Standalone.name());
     }
-
-    @Override
-    public StatefulRedisConnection redisConnection() {
-      Container redisContainer = this.cluster.container("redis");
-      DockerPort redisPort = redisContainer.port(6379);
-      RedisURI redisURI = RedisURI.builder()
-          .withHost(redisPort.getIp())
-          .withPort(redisPort.getExternalPort())
-          .withDatabase(1)
-          .build();
-
-      RedisClient client = RedisClient.create(redisURI);
-      return client.connect();
-    }
   }
 
   public static class RedisCluster extends ConnectionHelper {
@@ -77,20 +63,11 @@ abstract class ConnectionHelper {
     public void appendSettings(Map<String, String> settings) {
       Container redisContainer = this.cluster.container("redis");
       List<String> hosts = new ArrayList<>();
-      for (int port = 9000; port <= 9005; port++) {
+      for (int port = 50000; port <= 50005; port++) {
         hosts.add(String.format("%s:%s", "127.0.0.1", port));
       }
       settings.put(RedisPubSubSourceConnectorConfig.HOSTS_CONFIG, String.join(",", hosts));
       settings.put(RedisPubSubSourceConnectorConfig.CLIENT_MODE_CONFIG, RedisConnectorConfig.ClientMode.Cluster.name());
-    }
-
-    @Override
-    public StatefulRedisConnection redisConnection() {
-      List<RedisURI> redisURIS = IntStream.range(9005, 9006).boxed()
-          .map(port -> RedisURI.builder().withHost("127.0.0.1").withPort(port).build())
-          .collect(Collectors.toList());
-      RedisClusterClient clusterClient = RedisClusterClient.create(redisURIS);
-      return (StatefulRedisConnection) clusterClient.connect();
     }
   }
 
@@ -109,23 +86,6 @@ abstract class ConnectionHelper {
       settings.put(RedisPubSubSourceConnectorConfig.HOSTS_CONFIG, String.join(",", hosts));
       settings.put(RedisPubSubSourceConnectorConfig.CLIENT_MODE_CONFIG, RedisConnectorConfig.ClientMode.Sentinel.name());
       settings.put(RedisPubSubSinkConnectorConfig.SENTINEL_MASTER_ID_CONFIG, "mymaster");
-    }
-
-    @Override
-    public StatefulRedisConnection redisConnection() {
-      RedisURI.Builder builder = RedisURI.builder();
-
-      for (int port = 51000; port <= 51002; port++) {
-        builder = builder.withSentinel("127.0.0.1", port);
-      }
-
-
-      RedisURI redisURI = builder
-          .withSentinelMasterId("mymaster")
-          .build();
-
-      RedisClient client = RedisClient.create(redisURI);
-      return client.connect();
     }
   }
 }

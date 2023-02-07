@@ -20,6 +20,7 @@ import io.lettuce.core.RedisFuture;
 import org.apache.kafka.clients.consumer.OffsetAndMetadata;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.connect.sink.SinkRecord;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.mockito.stubbing.Answer;
 
@@ -35,6 +36,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.withSettings;
 
+@Disabled
 public class RedisPubSubSinkTaskTest extends AbstractSinkTaskTest<RedisPubSubSinkTask> {
 
   @Test

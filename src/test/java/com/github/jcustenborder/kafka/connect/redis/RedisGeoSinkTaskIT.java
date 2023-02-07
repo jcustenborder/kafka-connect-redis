@@ -130,8 +130,8 @@ public abstract class RedisGeoSinkTaskIT extends AbstractSinkTaskIntegrationTest
     this.task.put(writes);
     Map<TopicPartition, OffsetAndMetadata> offsets = TestUtils.offsets(writes);
     this.task.flush(offsets);
-
-
+    
+    //TODO: Add more verification to this class
 //    ListMultimap<SinkOperation.GeoSetKey, TestLocation> operations = locationByRegion(expected);
 //    for (SinkOperation.GeoSetKey key : operations.keySet()) {
 //      List<TestLocation> locations = operations.get(key);
@@ -166,35 +166,4 @@ public abstract class RedisGeoSinkTaskIT extends AbstractSinkTaskIntegrationTest
 //    }
   }
 
-  @Compose(
-      dockerComposePath = "src/test/resources/docker/standard/docker-compose.yml",
-      clusterHealthCheck = RedisStandardHealthCheck.class
-  )
-  public static class Standard extends RedisGeoSinkTaskIT {
-    @Override
-    protected ConnectionHelper createConnectionHelper(Cluster cluster) {
-      return new ConnectionHelper.Standard(cluster);
-    }
-  }
-
-  @Compose(
-      dockerComposePath = "src/test/resources/docker/sentinel/docker-compose.yml",
-      clusterHealthCheck = RedisSentinelHealthCheck.class
-  )
-  public static class Sentinel extends RedisGeoSinkTaskIT {
-    @Override
-    protected ConnectionHelper createConnectionHelper(Cluster cluster) {
-      return new ConnectionHelper.Sentinel(cluster);
-    }
-  }
-  @Compose(
-      dockerComposePath = "src/test/resources/docker/cluster/docker-compose.yml",
-      clusterHealthCheck = RedisClusterHealthCheck.class
-  )
-  public static class RedisCluster extends RedisGeoSinkTaskIT {
-    @Override
-    protected ConnectionHelper createConnectionHelper(Cluster cluster) {
-      return new ConnectionHelper.RedisCluster(cluster);
-    }
-  }
 }

@@ -22,21 +22,20 @@ import java.util.Map;
 
 public abstract class AbstractRedisPubSubSourceTask<CONFIG extends RedisSourceConnectorConfig> extends AbstractRedisSourceTask<CONFIG> {
   private static final Logger log = LoggerFactory.getLogger(AbstractRedisPubSubSourceTask.class);
-  protected RedisPubSubSession<byte[], byte[]> session;
+  protected RedisPubSubSession pubSubSession;
 
   @Override
   public void start(Map<String, String> settings) {
-    this.config = config(settings);
-    setup(this.config);
-    this.session = this.sessionFactory.createPubSubSession(this.config);
+    super.start(settings);
+    this.pubSubSession = this.sessionFactory.createPubSubSession(this.config);
   }
 
   @Override
   public void stop() {
     try {
-      if (null != this.session) {
+      if (null != this.pubSubSession) {
         log.debug("stop() - Closing session.");
-        this.session.close();
+        this.pubSubSession.close();
       }
     } catch (Exception e) {
       log.error("Exception thrown while closing session.", e);

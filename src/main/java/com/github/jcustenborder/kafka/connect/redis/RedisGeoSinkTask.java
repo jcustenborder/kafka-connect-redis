@@ -93,7 +93,7 @@ public class RedisGeoSinkTask extends AbstractRedisCacheSinkTask<RedisGeoSinkCon
       CompletableFuture<?> future;
 
       if (null == record.value()) {
-        future = this.session.asyncCommands().zrem(topicKey, key)
+        future = this.session.sortedSet().zrem(topicKey, key)
             .exceptionally(exceptionally(record))
             .toCompletableFuture();
       } else {
@@ -114,7 +114,7 @@ public class RedisGeoSinkTask extends AbstractRedisCacheSinkTask<RedisGeoSinkCon
         GeoCoordinates coordinates = GeoCoordinates.create(latitude, longitude);
         GeoValue<byte[]> value = GeoValue.just(coordinates, key);
 
-        future = this.session.asyncCommands().geoadd(topicKey, value)
+        future = this.session.geo().geoadd(topicKey, value)
             .exceptionally(exceptionally(record))
             .toCompletableFuture();
       }

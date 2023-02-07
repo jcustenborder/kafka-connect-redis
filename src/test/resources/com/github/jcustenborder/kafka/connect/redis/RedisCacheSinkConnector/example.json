@@ -1,0 +1,10 @@
+{
+  "name": "Standard Redis Host",
+  "description": "This example will connect to a Redis host that is running on localhost:6719. This example takes the exact byte value that is stored in Kafka and writes it to Redis using the same key from Kafka.",
+  "config": {
+    "redis.hosts": "localhost:6719",
+    "topic": "users",
+    "key.converter": "org.apache.kafka.connect.converters.ByteArrayConverter",
+    "value.converter": "org.apache.kafka.connect.converters.ByteArrayConverter"
+  }
+}

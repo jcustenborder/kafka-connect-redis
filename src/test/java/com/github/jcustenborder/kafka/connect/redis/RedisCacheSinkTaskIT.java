@@ -25,8 +25,6 @@ import com.google.common.collect.ImmutableSet;
 import com.palantir.docker.compose.connection.Cluster;
 import io.lettuce.core.LettuceFutures;
 import io.lettuce.core.RedisFuture;
-import io.lettuce.core.api.StatefulRedisConnection;
-import io.lettuce.core.api.sync.RedisCommands;
 import org.apache.kafka.clients.consumer.OffsetAndMetadata;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.connect.data.Schema;
@@ -39,11 +37,13 @@ import org.slf4j.LoggerFactory;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.AbstractMap;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Random;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
@@ -125,7 +125,7 @@ public abstract class RedisCacheSinkTaskIT extends AbstractSinkTaskIntegrationTe
   }
 
   @Test
-  public void existingMixedOffsets() throws ExecutionException, InterruptedException {
+  public void existingMixedOffsets() throws Exception {
     Map<TopicPartition, Long> hmapBasedOffsets = generateOffsets(10, 40);
     Map<TopicPartition, Long> getBasedOffsets = new LinkedHashMap<>();
     getBasedOffsets.put(new TopicPartition("getBased", 1), 1234L);
@@ -139,28 +139,39 @@ public abstract class RedisCacheSinkTaskIT extends AbstractSinkTaskIntegrationTe
     );
 
 
-    try (StatefulRedisConnection<String, String> connection = this.connectionHelper.redisConnection()) {
-      RedisCommands<String, String> commands = connection.sync();
+    RedisCacheSinkConnectorConfig config = new RedisCacheSinkConnectorConfig(this.settings);
+    try (RedisSession session = this.task.sessionFactory.createSession(config)) {
       Map<String, Map<TopicPartition, Long>> topicOffsets = new LinkedHashMap<>();
       hmapBasedOffsets.forEach(((topicPartition, offsetAndMetadata) -> {
         Map<TopicPartition, Long> offsets = topicOffsets.computeIfAbsent(topicPartition.topic(), e -> new LinkedHashMap<>());
         offsets.put(topicPartition, offsetAndMetadata);
       }));
 
+      List<CompletableFuture<?>> futures = new ArrayList<>();
+
       topicOffsets.forEach((topic, offsets) -> {
-        String topicKey = String.format("__kafka.offsets.%s", topic);
-        Map<String, String> storedOffsets = offsets.entrySet().stream()
-            .collect(Collectors.toMap(e -> Integer.toString(e.getKey().partition()), e -> Long.toString(e.getValue())));
+        byte[] topicKey = String.format("__kafka.offsets.%s", topic).getBytes(StandardCharsets.UTF_8);
+        Map<byte[], byte[]> storedOffsets = offsets.entrySet().stream()
+            .collect(
+                Collectors.toMap(
+                    e -> Integer.toString(e.getKey().partition()).getBytes(StandardCharsets.UTF_8),
+                    e -> Long.toString(e.getValue()).getBytes(StandardCharsets.UTF_8)
+                )
+            );
         log.info("Calling hset('{}', {})", topicKey, storedOffsets);
-        long value = commands.hset(topicKey, storedOffsets);
-        log.info("result: {}", value);
+        futures.add(
+            session.hash().hset(topicKey, storedOffsets).toCompletableFuture()
+        );
       });
 
       getBasedOffsets.forEach(((topicPartition, offset) -> {
-        String topicPartitionKey = String.format("__kafka.offset.%s.%s", topicPartition.topic(), topicPartition.partition());
+        byte[] topicPartitionKey = String.format("__kafka.offset.%s.%s", topicPartition.topic(), topicPartition.partition()).getBytes(StandardCharsets.UTF_8);
         log.info("Calling set('{}', '{}')", topicPartitionKey, offset);
-        commands.set(topicPartitionKey, Long.toString(offset));
+        futures.add(
+            session.string().set(topicPartitionKey, Long.toString(offset).getBytes(StandardCharsets.UTF_8)).toCompletableFuture()
+        );
       }));
+      LettuceFutures.awaitAll(30, TimeUnit.SECONDS, futures.toArray(new CompletableFuture<?>[0]));
     }
 
     Map<TopicPartition, Long> expectedOffsets = new LinkedHashMap<>();
@@ -184,14 +195,14 @@ public abstract class RedisCacheSinkTaskIT extends AbstractSinkTaskIntegrationTe
 
 
   @Test
-  public void existingOffsets() throws ExecutionException, InterruptedException {
+  public void existingOffsets() throws Exception {
 
     Map<TopicPartition, Long> expectedOffsets = generateOffsets(10, 40);
     when(this.sinkTaskContext.assignment()).thenReturn(expectedOffsets.keySet());
     log.info("Offsets {}", expectedOffsets);
 
-    try (StatefulRedisConnection<String, String> connection = this.connectionHelper.redisConnection()) {
-      RedisCommands<String, String> commands = connection.sync();
+    RedisCacheSinkConnectorConfig config = new RedisCacheSinkConnectorConfig(this.settings);
+    try (RedisSession session = this.task.sessionFactory.createSession(config)) {
       Map<String, Map<TopicPartition, Long>> topicOffsets = new LinkedHashMap<>();
       expectedOffsets.forEach(((topicPartition, offsetAndMetadata) -> {
         Map<TopicPartition, Long> offsets = topicOffsets.computeIfAbsent(topicPartition.topic(), e -> new LinkedHashMap<>());
@@ -199,11 +210,21 @@ public abstract class RedisCacheSinkTaskIT extends AbstractSinkTaskIntegrationTe
       }));
 
       topicOffsets.forEach((topic, offsets) -> {
-        String topicKey = String.format("__kafka.offsets.%s", topic);
-        Map<String, String> storedOffsets = offsets.entrySet().stream()
-            .collect(Collectors.toMap(e -> Integer.toString(e.getKey().partition()), e -> Long.toString(e.getValue())));
+        byte[] topicKey = String.format("__kafka.offsets.%s", topic).getBytes(StandardCharsets.UTF_8);
+        Map<byte[], byte[]> storedOffsets = offsets.entrySet().stream()
+            .collect(
+                Collectors.toMap(
+                    e -> Integer.toString(e.getKey().partition()).getBytes(StandardCharsets.UTF_8),
+                    e -> Long.toString(e.getValue()).getBytes(StandardCharsets.UTF_8)
+                )
+            );
         log.info("Calling hset('{}', {})", topicKey, storedOffsets);
-        long value = commands.hset(topicKey, storedOffsets);
+        long value = 0;
+        try {
+          value = session.hash().hset(topicKey, storedOffsets).get(30, TimeUnit.SECONDS);
+        } catch (Exception e) {
+          fail(e);
+        }
         log.info("result: {}", value);
       });
     }
@@ -251,13 +272,13 @@ public abstract class RedisCacheSinkTaskIT extends AbstractSinkTaskIntegrationTe
 
     for (int i = 0; i < keys.length; i++) {
       final byte[] key = keys[i];
-      futures[i] = this.task.session.asyncCommands().get(key);
+      futures[i] = this.task.session.string().get(key);
       futures[i].thenAccept(value -> results.put(
           new String(key, StandardCharsets.UTF_8),
           new String(value, StandardCharsets.UTF_8)
       ));
     }
-    this.task.session.connection().flushCommands();
+    this.task.session.flushCommands();
     LettuceFutures.awaitAll(30, TimeUnit.SECONDS, futures);
     assertEquals(keys.length, results.size());
 
@@ -272,8 +293,6 @@ public abstract class RedisCacheSinkTaskIT extends AbstractSinkTaskIntegrationTe
   }
 
 
-
-
   void assertOffsets(Map<TopicPartition, OffsetAndMetadata> expectedOffsets) {
     Map<String, Map<TopicPartition, Long>> topics = new LinkedHashMap<>();
     expectedOffsets.forEach(((topicPartition, offsetAndMetadata) -> {
@@ -286,8 +305,8 @@ public abstract class RedisCacheSinkTaskIT extends AbstractSinkTaskIntegrationTe
       byte[] key = topicKey.getBytes(StandardCharsets.UTF_8);
 
       log.info("Calling hgetall('{}')", topicKey);
-      RedisFuture<Map<byte[], byte[]>> future = this.task.session.asyncCommands().hgetall(key);
-      this.task.session.connection().flushCommands();
+      RedisFuture<Map<byte[], byte[]>> future = this.task.session.hash().hgetall(key);
+      this.task.session.flushCommands();
       try {
         Map<byte[], byte[]> storedOffsets = future.get(30, TimeUnit.SECONDS);
         Map<String, String> actualOffsets = storedOffsets.entrySet().stream()
@@ -336,9 +355,9 @@ public abstract class RedisCacheSinkTaskIT extends AbstractSinkTaskIntegrationTe
 
     RedisFuture<Long>[] futures = new RedisFuture[keys.length];
     for (int i = 0; i < futures.length; i++) {
-      futures[i] = this.task.session.asyncCommands().exists(keys[i]);
+      futures[i] = this.task.session.key().exists(keys[i]);
     }
-    this.task.session.connection().flushCommands();
+    this.task.session.flushCommands();
     LettuceFutures.awaitAll(
         30000,
         TimeUnit.MILLISECONDS,
@@ -363,9 +382,9 @@ public abstract class RedisCacheSinkTaskIT extends AbstractSinkTaskIntegrationTe
 
     futures = new RedisFuture[keys.length];
     for (int i = 0; i < futures.length; i++) {
-      futures[i] = this.task.session.asyncCommands().exists(keys[i]);
+      futures[i] = this.task.session.key().exists(keys[i]);
     }
-    this.task.session.connection().flushCommands();
+    this.task.session.flushCommands();
     LettuceFutures.awaitAll(
         30000,
         TimeUnit.MILLISECONDS,
@@ -377,39 +396,5 @@ public abstract class RedisCacheSinkTaskIT extends AbstractSinkTaskIntegrationTe
       count += future.get();
     }
     assertEquals(0, count, "Count written does not match.");
-
-  }
-
-
-  @Compose(
-      dockerComposePath = "src/test/resources/docker/standard/docker-compose.yml",
-      clusterHealthCheck = RedisStandardHealthCheck.class
-  )
-  public static class Standard extends RedisCacheSinkTaskIT {
-    @Override
-    protected ConnectionHelper createConnectionHelper(Cluster cluster) {
-      return new ConnectionHelper.Standard(cluster);
-    }
-  }
-
-  @Compose(
-      dockerComposePath = "src/test/resources/docker/sentinel/docker-compose.yml",
-      clusterHealthCheck = RedisSentinelHealthCheck.class
-  )
-  public static class Sentinel extends RedisCacheSinkTaskIT {
-    @Override
-    protected ConnectionHelper createConnectionHelper(Cluster cluster) {
-      return new ConnectionHelper.Sentinel(cluster);
-    }
-  }
-  @Compose(
-      dockerComposePath = "src/test/resources/docker/cluster/docker-compose.yml",
-      clusterHealthCheck = RedisClusterHealthCheck.class
-  )
-  public static class RedisCluster extends RedisCacheSinkTaskIT {
-    @Override
-    protected ConnectionHelper createConnectionHelper(Cluster cluster) {
-      return new ConnectionHelper.RedisCluster(cluster);
-    }
   }
 }

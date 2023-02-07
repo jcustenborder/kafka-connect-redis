@@ -15,11 +15,6 @@
  */
 package com.github.jcustenborder.kafka.connect.redis;
 
-import com.github.jcustenborder.docker.junit5.Compose;
-import com.github.jcustenborder.kafka.connect.redis.healthchecks.RedisClusterHealthCheck;
-import com.github.jcustenborder.kafka.connect.redis.healthchecks.RedisSentinelHealthCheck;
-import com.github.jcustenborder.kafka.connect.redis.healthchecks.RedisStandardHealthCheck;
-import com.palantir.docker.compose.connection.Cluster;
 import io.lettuce.core.LettuceFutures;
 import io.lettuce.core.RedisFuture;
 import org.apache.kafka.connect.header.Header;
@@ -86,20 +81,19 @@ public abstract class RedisPubSubSourceTaskIT extends AbstractSourceTaskIntegrat
         .map(s -> s.getBytes(this.task.config.charset))
         .collect(Collectors.toList());
 
-    RedisPubSubSession<byte[], byte[]> session = this.task.sessionFactory.createPubSubSession(this.task.config);
-
-    log.info("Publishing {} message(s) to redis channel '{}'.", input.size(), channelName);
-    boolean success = LettuceFutures.awaitAll(30, TimeUnit.SECONDS, input.stream()
-        .map(l -> session.asyncCommands().publish(channelBytes, l))
-        .toArray(RedisFuture[]::new));
-    assertTrue(success);
-    session.close();
-    assertTimeoutPreemptively(Duration.ofSeconds(30), () -> {
-      List<SourceRecord> records = waitForRecords(input.size());
-      assertRecords(input, records, (expected, record) -> {
-        assertHeader(record, "redis.channel", channelName);
+    try (RedisPubSubSession session = this.task.sessionFactory.createPubSubSession(this.task.config)) {
+      log.info("Publishing {} message(s) to redis channel '{}'.", input.size(), channelName);
+      boolean success = LettuceFutures.awaitAll(30, TimeUnit.SECONDS, input.stream()
+          .map(l -> session.asyncCommands().publish(channelBytes, l))
+          .toArray(RedisFuture[]::new));
+      assertTrue(success);
+      assertTimeoutPreemptively(Duration.ofSeconds(30), () -> {
+        List<SourceRecord> records = waitForRecords(input.size());
+        assertRecords(input, records, (expected, record) -> {
+          assertHeader(record, "redis.channel", channelName);
+        });
       });
-    });
+    }
   }
 
   @Test
@@ -119,17 +113,16 @@ public abstract class RedisPubSubSourceTaskIT extends AbstractSourceTaskIntegrat
         .collect(Collectors.toList());
     final int expectedRecords = channels.size() * input.size();
 
-    RedisPubSubSession<byte[], byte[]> session = this.task.sessionFactory.createPubSubSession(this.task.config);
-    List<RedisFuture<?>> futures = new ArrayList<>(expectedRecords);
-    input.forEach(v -> {
-      channels.stream().map(channel -> session.asyncCommands()
-              .publish(channel.getBytes(StandardCharsets.UTF_8), v))
-          .forEach(futures::add);
-    });
+    try (RedisPubSubSession session = this.task.sessionFactory.createPubSubSession(this.task.config)) {
+      List<RedisFuture<?>> futures = new ArrayList<>(expectedRecords);
+      input.forEach(v -> {
+        channels.stream().map(channel -> session.asyncCommands()
+                .publish(channel.getBytes(StandardCharsets.UTF_8), v))
+            .forEach(futures::add);
+      });
 
-    LettuceFutures.awaitAll(30, TimeUnit.SECONDS, futures.stream().toArray(RedisFuture[]::new));
-
-    session.close();
+      LettuceFutures.awaitAll(30, TimeUnit.SECONDS, futures.toArray(new RedisFuture[0]));
+    }
     assertTimeoutPreemptively(Duration.ofSeconds(30), () -> {
       List<SourceRecord> records = waitForRecords(expectedRecords);
       Map<String, List<SourceRecord>> recordsByChannel = new LinkedHashMap<>();
@@ -148,36 +141,5 @@ public abstract class RedisPubSubSourceTaskIT extends AbstractSourceTaskIntegrat
     });
   }
 
-
-  @Compose(
-      dockerComposePath = "src/test/resources/docker/standard/docker-compose.yml",
-      clusterHealthCheck = RedisStandardHealthCheck.class
-  )
-  public static class Standard extends RedisPubSubSourceTaskIT {
-    @Override
-    protected ConnectionHelper createConnectionHelper(Cluster cluster) {
-      return new ConnectionHelper.Standard(cluster);
-    }
-  }
-  @Compose(
-      dockerComposePath = "src/test/resources/docker/sentinel/docker-compose.yml",
-      clusterHealthCheck = RedisSentinelHealthCheck.class
-  )
-  public static class Sentinel extends RedisPubSubSourceTaskIT {
-    @Override
-    protected ConnectionHelper createConnectionHelper(Cluster cluster) {
-      return new ConnectionHelper.Sentinel(cluster);
-    }
-  }
-  @Compose(
-      dockerComposePath = "src/test/resources/docker/cluster/docker-compose.yml",
-      clusterHealthCheck = RedisClusterHealthCheck.class
-  )
-  public static class RedisCluster extends RedisPubSubSourceTaskIT {
-    @Override
-    protected ConnectionHelper createConnectionHelper(Cluster cluster) {
-      return new ConnectionHelper.RedisCluster(cluster);
-    }
-  }
 
 }

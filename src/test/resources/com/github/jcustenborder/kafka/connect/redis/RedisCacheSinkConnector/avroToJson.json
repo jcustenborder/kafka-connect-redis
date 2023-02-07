@@ -1,0 +1,12 @@
+{
+  "name": "From Avro in Kafka to JSON in Redis",
+  "description": "This example reads data from Kafka that is stored as Avro and writes the data to Redis as JSON. This is accomplished by using a transformation against the data stored in Kafka.",
+  "config": {
+    "redis.hosts": "localhost:6719",
+    "topic": "users",
+    "key.converter": "org.apache.kafka.connect.converters.StringConverter",
+    "value.converter": "io.confluent.connect.avro.AvroConverter",
+    "transforms": "ToJson",
+    "transforms.ToJson.type":"com.github.jcustenborder.kafka.connect.transform.common.ToJSON$Value"
+  }
+}

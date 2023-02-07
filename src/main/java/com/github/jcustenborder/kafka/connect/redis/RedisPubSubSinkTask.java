@@ -26,7 +26,7 @@ import static com.github.jcustenborder.kafka.connect.redis.Utils.logLocation;
 
 public class RedisPubSubSinkTask extends AbstractRedisSinkTask<RedisPubSubSinkConnectorConfig> {
   private static final Logger log = LoggerFactory.getLogger(RedisPubSubSinkTask.class);
-  protected RedisPubSubSession<byte[], byte[]> pubSubSession;
+  protected RedisPubSubSession pubSubSession;
 
   @Override
   protected RedisPubSubSinkConnectorConfig config(Map<String, String> settings) {
@@ -60,6 +60,7 @@ public class RedisPubSubSinkTask extends AbstractRedisSinkTask<RedisPubSubSinkCo
                   .exceptionally(exceptionally(record))
                   .toCompletableFuture()
           ).forEach(this.futures::add);
+      log.debug("put() - Added {} future(s)", this.futures.size());
     }
   }
 

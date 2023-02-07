@@ -55,7 +55,7 @@ public abstract class AbstractRedisCacheSinkTask<CONFIG extends RedisSinkConnect
     super.start(settings);
 
     log.debug("start() - Setting connection().setAutoFlushCommands(false)");
-    this.session.connection().setAutoFlushCommands(false);
+    this.session.setAutoFlushCommands(false);
   }
 
 

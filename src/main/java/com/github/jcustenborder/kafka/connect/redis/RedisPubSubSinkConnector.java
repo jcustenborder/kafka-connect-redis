@@ -15,5 +15,25 @@
  */
 package com.github.jcustenborder.kafka.connect.redis;
 
-public class RedisPubSubSinkConnector {
+import org.apache.kafka.common.config.ConfigDef;
+import org.apache.kafka.connect.connector.Task;
+
+import java.util.Map;
+
+public class RedisPubSubSinkConnector extends AbstractRedisSinkConnector<RedisPubSubSinkConnectorConfig> {
+
+  @Override
+  protected RedisPubSubSinkConnectorConfig config(Map<String, String> settings) {
+    return new RedisPubSubSinkConnectorConfig(settings);
+  }
+
+  @Override
+  public Class<? extends Task> taskClass() {
+    return RedisPubSubSinkTask.class;
+  }
+
+  @Override
+  public ConfigDef config() {
+    return RedisPubSubSinkConnectorConfig.config();
+  }
 }

@@ -15,11 +15,37 @@
  */
 package com.github.jcustenborder.kafka.connect.redis;
 
+import com.github.jcustenborder.kafka.connect.utils.config.Description;
+import com.github.jcustenborder.kafka.connect.utils.config.DocumentationImportant;
+import com.github.jcustenborder.kafka.connect.utils.config.DocumentationNote;
+import com.github.jcustenborder.kafka.connect.utils.config.DocumentationSection;
+import com.github.jcustenborder.kafka.connect.utils.config.DocumentationSections;
+import com.github.jcustenborder.kafka.connect.utils.config.Title;
 import org.apache.kafka.common.config.ConfigDef;
 import org.apache.kafka.connect.connector.Task;
 
 import java.util.Map;
 
+@Title("Redis Pub/Sub Sink Connector")
+@Description("The Redis Pub/Sub Sink Connector is used to publish data from Kafka to Redis using Redis Pub/Sub subscriptions.")
+@DocumentationImportant("This connector expects records from Kafka to have a key and value that are " +
+    "stored as bytes or a string. If your data is already in Kafka in the format that you want in " +
+    "Redis consider using the ByteArrayConverter or the StringConverter for this connector. Keep in " +
+    "this does not need to be configured in the worker properties and can be configured at the " +
+    "connector level. If your data is not sitting in Kafka in the format you wish to persist in Redis " +
+    "consider using a Single Message Transformation to convert the data to a byte or string representation " +
+    "before it is written to Redis.")
+@DocumentationNote("This connector ignores deletes. If the record stored in Kafka has a null value, " +
+    "this connector will drop the record. Only the data in the value of the Kafka record will be written to Redis.")
+@DocumentationSections(
+    sections = {
+        @DocumentationSection(title = "Additional Data Formats", text = "You might be asking, why does this connector only support the " +
+            "StringConverter and the ByteArrayConverter. I really need the data to be JSON or <insert format name here>. " +
+            "The keys for Redis need to be correct at the byte level. The safest way to accomplish this is utilize a Single Message Transformation (SMT)" +
+            "that is controlled by the user. This allows the user to make a decision of how the data is stored in Redis using configuration of the connector. " +
+            "For example data could be stored in Kafka as AVRO and you could use a SMT to convert this data to JSON as it's written to Redis.")
+    }
+)
 public class RedisPubSubSinkConnector extends AbstractRedisSinkConnector<RedisPubSubSinkConnectorConfig> {
 
   @Override

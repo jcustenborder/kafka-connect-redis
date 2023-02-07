@@ -16,21 +16,14 @@
 package com.github.jcustenborder.kafka.connect.redis;
 
 import com.github.jcustenborder.kafka.connect.utils.config.Description;
-import com.github.jcustenborder.kafka.connect.utils.config.DocumentationImportant;
-import com.github.jcustenborder.kafka.connect.utils.config.DocumentationNote;
 import com.github.jcustenborder.kafka.connect.utils.config.Title;
 import org.apache.kafka.common.config.ConfigDef;
 import org.apache.kafka.connect.connector.Task;
 
 import java.util.Map;
 
-@Title("Redis Pub Sub Source Connector")
-@Description("The Redis Pub Sub Source Connector is used to write data from Kafka to a Redis cache.")
-@DocumentationImportant("This connector expects data to be written in the following format. " +
-    "Key: `string or bytes`, " +
-    "Value: `{\"latitude\":\"30.2672\", \"longitude\":\"97.7431\"}` ")
-@DocumentationNote("This connector supports deletes. If the record stored in Kafka has a null value, " +
-    "this connector will send a delete with the corresponding key to Redis.")
+@Title("Redis Pub/Sub Source Connector")
+@Description("The Redis Pub/Sub Source Connector is used to retrieve data using Redis Pub/Sub subscriptions.")
 public class RedisPubSubSourceConnector extends AbstractRedisSourceConnector<RedisPubSubSourceConnectorConfig> {
   @Override
   public Class<? extends Task> taskClass() {

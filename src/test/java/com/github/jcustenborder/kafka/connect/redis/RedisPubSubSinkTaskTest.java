@@ -38,38 +38,42 @@ import static org.mockito.Mockito.withSettings;
 
 @Disabled
 public class RedisPubSubSinkTaskTest extends AbstractSinkTaskTest<RedisPubSubSinkTask> {
-
-  @Test
-  public void test() {
-    this.task.start(ImmutableMap.of(
-        RedisPubSubSinkConnectorConfig.TARGET_CONFIG, "one,two,three"
-    ));
-    when(this.redisPubSubAsyncCommands.publish(any(), any())).thenAnswer(invocationOnMock -> {
-      RedisFuture<?> future = mock(RedisFuture.class, withSettings().verboseLogging());
-      when(future.exceptionally(any())).thenAnswer((Answer<Object>) invocationOnMock12 -> {
-        CompletionStage<?> stage = mock(CompletionStage.class);
-        when(stage.toCompletableFuture()).thenAnswer(invocationOnMock1 -> new CompletableFuture<>());
-        return stage;
-      });
-      return mock(RedisFuture.class, withSettings().verboseLogging());
-    });
-
-    List<SinkRecord> records = Arrays.asList(
-        record("set1", "one"),
-        record("set2", "two"),
-        record("delete1", null),
-        record("set3", "three"),
-        record("set4", "four")
-    );
-    this.task.put(records);
-    Map<TopicPartition, OffsetAndMetadata> offsets = offsets(records);
-    this.task.flush(offsets);
-  }
-
   @Override
   protected RedisPubSubSinkTask createTask() {
-    return new RedisPubSubSinkTask();
+    return null;
   }
 
+//  @Test
+//  public void test() {
+//    this.task.start(ImmutableMap.of(
+//        RedisPubSubSinkConnectorConfig.TARGET_CONFIG, "one,two,three"
+//    ));
+//    when(this.redisPubSubAsyncCommands.publish(any(), any())).thenAnswer(invocationOnMock -> {
+//      RedisFuture<?> future = mock(RedisFuture.class, withSettings().verboseLogging());
+//      when(future.exceptionally(any())).thenAnswer((Answer<Object>) invocationOnMock12 -> {
+//        CompletionStage<?> stage = mock(CompletionStage.class);
+//        when(stage.toCompletableFuture()).thenAnswer(invocationOnMock1 -> new CompletableFuture<>());
+//        return stage;
+//      });
+//      return mock(RedisFuture.class, withSettings().verboseLogging());
+//    });
+//
+//    List<SinkRecord> records = Arrays.asList(
+//        record("set1", "one"),
+//        record("set2", "two"),
+//        record("delete1", null),
+//        record("set3", "three"),
+//        record("set4", "four")
+//    );
+//    this.task.put(records);
+//    Map<TopicPartition, OffsetAndMetadata> offsets = offsets(records);
+//    this.task.flush(offsets);
+//  }
+//
+//  @Override
+//  protected RedisPubSubSinkTask createTask() {
+//    return new RedisPubSubSinkTask();
+//  }
+//
 
 }

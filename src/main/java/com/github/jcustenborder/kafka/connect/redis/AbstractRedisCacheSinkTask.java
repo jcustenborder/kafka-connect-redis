@@ -16,34 +16,13 @@
 package com.github.jcustenborder.kafka.connect.redis;
 
 import com.github.jcustenborder.kafka.connect.utils.VersionUtil;
-import com.github.jcustenborder.kafka.connect.utils.data.SinkOffsetState;
-import com.github.jcustenborder.kafka.connect.utils.jackson.ObjectMapperFactory;
-import io.lettuce.core.KeyValue;
-import org.apache.kafka.common.TopicPartition;
-import org.apache.kafka.connect.errors.DataException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.IOException;
 import java.util.Map;
 
 public abstract class AbstractRedisCacheSinkTask<CONFIG extends RedisSinkConnectorConfig> extends AbstractRedisSinkTask<CONFIG> {
   private static final Logger log = LoggerFactory.getLogger(AbstractRedisCacheSinkTask.class);
-
-  static SinkOffsetState state(KeyValue<byte[], byte[]> input) {
-    if (!input.hasValue()) {
-      return null;
-    }
-    try {
-      return ObjectMapperFactory.INSTANCE.readValue(input.getValue(), SinkOffsetState.class);
-    } catch (IOException e) {
-      throw new DataException(e);
-    }
-  }
-
-  static String redisOffsetKey(TopicPartition topicPartition) {
-    return String.format("__kafka.offset.%s.%s", topicPartition.topic(), topicPartition.partition());
-  }
 
   @Override
   public String version() {
@@ -56,20 +35,5 @@ public abstract class AbstractRedisCacheSinkTask<CONFIG extends RedisSinkConnect
 
     log.debug("start() - Setting connection().setAutoFlushCommands(false)");
     this.session.setAutoFlushCommands(false);
-  }
-
-
-//  protected abstract void operations(SinkOperations sinkOperations, Collection<SinkRecord> records);
-
-
-  @Override
-  public void stop() {
-    try {
-      if (null != this.session) {
-        this.session.close();
-      }
-    } catch (Exception e) {
-      log.warn("Exception thrown", e);
-    }
   }
 }

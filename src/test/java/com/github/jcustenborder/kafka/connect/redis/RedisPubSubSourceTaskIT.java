@@ -37,6 +37,7 @@ import java.util.stream.IntStream;
 
 import static com.github.jcustenborder.kafka.connect.redis.TestUtils.assertHeader;
 import static com.github.jcustenborder.kafka.connect.redis.TestUtils.assertRecords;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTimeoutPreemptively;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
@@ -125,6 +126,7 @@ public abstract class RedisPubSubSourceTaskIT extends AbstractSourceTaskIntegrat
     }
     assertTimeoutPreemptively(Duration.ofSeconds(30), () -> {
       List<SourceRecord> records = waitForRecords(expectedRecords);
+      assertEquals(expectedRecords, records.size());
       Map<String, List<SourceRecord>> recordsByChannel = new LinkedHashMap<>();
       for (SourceRecord record : records) {
         Header header = record.headers().lastWithName("redis.channel");

@@ -21,7 +21,7 @@ import org.junit.jupiter.api.Test;
 
 import java.util.Map;
 
-import static com.github.jcustenborder.kafka.connect.redis.TestUtils.mapOf;
+import static com.github.jcustenborder.kafka.connect.redis.Utils.mapOf;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 

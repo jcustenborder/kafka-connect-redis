@@ -18,6 +18,7 @@ package com.github.jcustenborder.kafka.connect.redis;
 import io.lettuce.core.api.async.RedisGeoAsyncCommands;
 import io.lettuce.core.api.async.RedisHashAsyncCommands;
 import io.lettuce.core.api.async.RedisKeyAsyncCommands;
+import io.lettuce.core.api.async.RedisSetAsyncCommands;
 import io.lettuce.core.api.async.RedisSortedSetAsyncCommands;
 import io.lettuce.core.api.async.RedisStreamAsyncCommands;
 import io.lettuce.core.api.async.RedisStringAsyncCommands;
@@ -28,7 +29,13 @@ public interface RedisSession extends AutoCloseable {
 
   void setAutoFlushCommands(boolean enabled);
 
-//  RedisAsyncCommands<byte[], byte[]> asyncCommands();
+  /* Listing out all of these is a massive pain, but it is necessary because cluster and normal/sentinel
+  do not have a common command interface. This is why it's broken out like this. Annoying but necessary.
+   */
+
+//  RedisAsyncCommands <byte[], byte[]> asyncCommands();
+
+  RedisSetAsyncCommands<byte[], byte[]> set();
 
   RedisGeoAsyncCommands<byte[], byte[]> geo();
 

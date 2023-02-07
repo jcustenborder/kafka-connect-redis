@@ -31,7 +31,7 @@ public abstract class BaseConnectorConfigTest<T extends RedisConnectorConfig> {
     this.settings = new LinkedHashMap<>();
   }
 
-  void set(String... args) {
+  protected void set(String... args) {
     assertEquals(0, args.length % 2, "An even number of arguments should be passed.");
     for (int i = 0; i < args.length; i += 2) {
       String key = args[i];
@@ -55,15 +55,4 @@ public abstract class BaseConnectorConfigTest<T extends RedisConnectorConfig> {
   public void clientMode() {
 
   }
-
-
-  @Test
-  public void foo() {
-    set(
-        "foo", "bar"
-    );
-
-  }
-
-
 }

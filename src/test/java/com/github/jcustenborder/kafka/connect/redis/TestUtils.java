@@ -67,18 +67,6 @@ public class TestUtils {
     }
   }
 
-  public static Map<String, String> mapOf(String... args) {
-    assertEquals(0, args.length % 2, "Even number of arguments must be supplied");
-    Map<String, String> result = new LinkedHashMap<>();
-    for (int i = 0; i < args.length; i += 2) {
-      result.put(
-          args[i],
-          args[i + 1]
-      );
-    }
-    return result;
-  }
-
   public static Map<TopicPartition, OffsetAndMetadata> offsets(List<SinkRecord> records) {
     Map<TopicPartition, OffsetAndMetadata> result = new LinkedHashMap<>();
     for (SinkRecord record : records) {

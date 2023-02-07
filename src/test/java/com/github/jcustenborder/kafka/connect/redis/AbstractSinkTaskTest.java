@@ -32,41 +32,18 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 
-public abstract class AbstractSinkTaskTest<TASK extends AbstractRedisSinkTask> {
+public abstract class AbstractSinkTaskTest<TASK extends AbstractRedisSinkTask> extends AbstractTaskTest<TASK> {
   protected SinkTaskContext context;
   protected ErrantRecordReporter errantRecordReporter;
 
-  protected TASK task;
 
-  protected abstract TASK createTask();
-
-  protected RedisSession redisClusterSession;
-  protected RedisPubSubSession redisPubSubSession;
-
-  protected RedisAsyncCommands<byte[], byte[]> redisCommands;
-
-  protected RedisPubSubAsyncCommands<byte[], byte[]> redisPubSubAsyncCommands;
   @BeforeEach
   public void before() {
     this.context = mock(SinkTaskContext.class);
     this.errantRecordReporter = mock(ErrantRecordReporter.class);
     when(this.context.errantRecordReporter()).thenReturn(this.errantRecordReporter);
-    this.task = createTask();
     this.task.initialize(this.context);
-    this.task.sessionFactory = mock(RedisSessionFactory.class);
-
-    this.redisClusterSession = mock(RedisSession.class);
-    this.redisCommands = mock(RedisAsyncCommands.class);
-//    when(this.redisClusterSession.asyncCommands()).thenReturn(this.redisCommands);
-
-    this.redisPubSubSession = mock(RedisPubSubSession.class);
-    when(this.task.sessionFactory.createPubSubSession(any())).thenReturn(this.redisPubSubSession);
-    when(this.task.sessionFactory.createSession(any())).thenReturn(this.redisClusterSession);
-
-    this.redisPubSubAsyncCommands = mock(RedisPubSubAsyncCommands.class);
-    when(this.redisPubSubSession.asyncCommands()).thenReturn(this.redisPubSubAsyncCommands);
-
-
+    this.task.sessionFactory = this.sessionFactory;
   }
 
   long offset;

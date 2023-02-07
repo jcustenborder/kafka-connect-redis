@@ -15,12 +15,9 @@
  */
 package com.github.jcustenborder.kafka.connect.redis;
 
-import com.google.common.base.Charsets;
-import com.google.common.base.Strings;
-import com.google.common.collect.ImmutableMap;
 import io.lettuce.core.RedisFuture;
-import io.lettuce.core.cluster.api.async.RedisAdvancedClusterAsyncCommands;
-import io.lettuce.core.cluster.api.async.RedisClusterAsyncCommands;
+import org.apache.kafka.clients.consumer.OffsetAndMetadata;
+import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.connect.data.Schema;
 import org.apache.kafka.connect.data.SchemaAndValue;
 import org.apache.kafka.connect.errors.DataException;
@@ -30,77 +27,37 @@ import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.mockito.InOrder;
 import org.mockito.Mockito;
-import org.mockito.invocation.InvocationOnMock;
-import org.mockito.stubbing.Answer;
 
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
-import java.util.concurrent.TimeUnit;
+import java.util.Map;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeoutException;
 
+import static com.github.jcustenborder.kafka.connect.redis.TestUtils.offsets;
 import static com.github.jcustenborder.kafka.connect.utils.SinkRecordHelper.write;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyMap;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.withSettings;
 
-@Disabled
-public class RedisCacheSinkTaskTest {
-  long offset = 1;
-  RedisCacheSinkTask task;
-  RedisClusterAsyncCommands<byte[], byte[]> asyncCommands;
-
-  SinkRecord record(String k, String v) {
-    final byte[] key = k.getBytes(Charsets.UTF_8);
-    final Schema keySchema = Schema.BYTES_SCHEMA;
-    final byte[] value;
-    final Schema valueSchema;
-
-    if (Strings.isNullOrEmpty(v)) {
-      value = null;
-      valueSchema = null;
-    } else {
-      value = v.getBytes(Charsets.UTF_8);
-      valueSchema = Schema.BYTES_SCHEMA;
-    }
-
-    return new SinkRecord(
-        "topic",
-        1,
-        keySchema,
-        key,
-        valueSchema,
-        value,
-        offset++
-    );
-
+public class RedisCacheSinkTaskTest extends AbstractSinkTaskTest<RedisCacheSinkTask> {
+  @Override
+  protected RedisCacheSinkTask createTask() {
+    return new RedisCacheSinkTask();
   }
-
-  @BeforeEach
-  public void before() throws InterruptedException {
-    this.task = new RedisCacheSinkTask();
-    this.task.session = mock(RedisSession.class);
-    this.asyncCommands = mock(RedisAdvancedClusterAsyncCommands.class, withSettings().verboseLogging());
-
-    Answer<?> answer = (Answer<Object>) invocationOnMock -> {
-      RedisFuture<?> future = mock(RedisFuture.class, withSettings().verboseLogging());
-      return future;
-    };
-
-    when(this.asyncCommands.set(any(), any())).thenAnswer(answer);
-    when(this.asyncCommands.psetex(any(), anyLong(), any())).thenAnswer(answer);
-
-
-    task.config = new RedisCacheSinkConnectorConfig(ImmutableMap.of());
-  }
-
 
   @Test
   public void nonByteOrStringKey() {
+    this.task.start(this.settings);
     DataException exception = assertThrows(DataException.class, () -> {
       this.task.put(
           Collections.singletonList(
@@ -118,6 +75,7 @@ public class RedisCacheSinkTaskTest {
 
   @Test
   public void nonByteOrStringValue() {
+    this.task.start(this.settings);
     DataException exception = assertThrows(DataException.class, () -> {
       this.task.put(
           Collections.singletonList(
@@ -135,8 +93,19 @@ public class RedisCacheSinkTaskTest {
     );
   }
 
+
+  @BeforeEach
+  public void setupMocks() {
+    when(this.string.set(any(byte[].class), any(byte[].class))).thenAnswer(invocationOnMock -> completedFuture(null));
+    when(this.string.psetex(any(byte[].class), anyLong(), any(byte[].class))).thenAnswer(invocationOnMock -> completedFuture(null));
+    when(this.session.key().del(any(byte[].class))).thenAnswer(invocationOnMock -> completedFuture(null));
+    when(this.session.hash().hset(any(byte[].class), anyMap())).thenAnswer(invocationOnMock -> completedFuture(null));
+  }
+
+
   @Test
   public void put() throws InterruptedException {
+    this.task.start(this.settings);
     List<SinkRecord> records = Arrays.asList(
         record("set1", "asdf"),
         record("set2", "asdf"),
@@ -145,12 +114,50 @@ public class RedisCacheSinkTaskTest {
         record("set4", "asdf")
     );
 
-    task.put(records);
+    this.task.put(records);
+    Map<TopicPartition, OffsetAndMetadata> offsets = offsets(records);
+    this.task.flush(offsets);
 
-    InOrder inOrder = Mockito.inOrder(asyncCommands);
-    inOrder.verify(asyncCommands).mset(anyMap());
-    inOrder.verify(asyncCommands).del(any(byte[].class));
-    inOrder.verify(asyncCommands).mset(anyMap());
+    InOrder inOrder = Mockito.inOrder(this.string, this.key, this.hash);
+    inOrder.verify(this.string, times(2)).set(any(), any());
+    inOrder.verify(this.key).del(any(byte[].class));
+    inOrder.verify(this.string, times(2)).set(any(), any());
+    inOrder.verify(this.hash).hset(any(), anyMap());
+  }
+
+  @Test
+  public void putTTL() throws InterruptedException {
+    this.settings.put(RedisCacheSinkConnectorConfig.TTL_SECONDS_CONFIG, "30");
+    this.task.start(this.settings);
+    List<SinkRecord> records = Arrays.asList(
+        record("set1", "asdf"),
+        record("set2", "asdf"),
+        record("delete1", null),
+        record("set3", "asdf"),
+        record("set4", "asdf")
+    );
+
+    this.task.put(records);
+
+    Map<TopicPartition, OffsetAndMetadata> offsets = offsets(records);
+    this.task.flush(offsets);
+
+    InOrder inOrder = Mockito.inOrder(this.string, this.key, this.hash);
+    inOrder.verify(this.string, times(2)).psetex(any(), eq(this.task.config.ttl), any());
+    inOrder.verify(this.key).del(any(byte[].class));
+    inOrder.verify(this.string, times(2)).psetex(any(), eq(this.task.config.ttl), any());
+    inOrder.verify(this.hash).hset(any(), anyMap());
+  }
+
+
+  static <T> RedisFuture<T> completedFuture(T value) throws ExecutionException, InterruptedException, TimeoutException {
+    RedisFuture<T> result = mock(RedisFuture.class, withSettings().verboseLogging());
+    when(result.get()).thenReturn(value);
+    when(result.get(anyLong(), any())).thenReturn(value);
+    when(result.exceptionally(any())).thenReturn(result);
+    when(result.toCompletableFuture()).thenReturn(CompletableFuture.completedFuture(value));
+
+    return result;
   }
 
 }

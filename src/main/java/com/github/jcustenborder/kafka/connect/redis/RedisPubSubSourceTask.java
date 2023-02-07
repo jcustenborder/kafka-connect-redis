@@ -39,8 +39,11 @@ public class RedisPubSubSourceTask extends AbstractRedisPubSubSourceTask<RedisPu
   @Override
   public void start(Map<String, String> settings) {
     super.start(settings);
-    this.pubSubSession.addPubSubListener(this);
-    this.pubSubSession.addClusterPubSubListener(this);
+    if (RedisConnectorConfig.ClientMode.Cluster == this.config.clientMode) {
+      this.pubSubSession.addClusterPubSubListener(this);
+    } else {
+      this.pubSubSession.addPubSubListener(this);
+    }
 
     List<CompletableFuture<?>> futures = new ArrayList<>();
 

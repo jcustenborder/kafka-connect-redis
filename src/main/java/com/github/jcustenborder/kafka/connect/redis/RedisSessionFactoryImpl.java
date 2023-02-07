@@ -27,6 +27,7 @@ import io.lettuce.core.api.async.RedisAsyncCommands;
 import io.lettuce.core.api.async.RedisGeoAsyncCommands;
 import io.lettuce.core.api.async.RedisHashAsyncCommands;
 import io.lettuce.core.api.async.RedisKeyAsyncCommands;
+import io.lettuce.core.api.async.RedisSetAsyncCommands;
 import io.lettuce.core.api.async.RedisSortedSetAsyncCommands;
 import io.lettuce.core.api.async.RedisStreamAsyncCommands;
 import io.lettuce.core.api.async.RedisStringAsyncCommands;
@@ -40,7 +41,6 @@ import io.lettuce.core.cluster.pubsub.StatefulRedisClusterPubSubConnection;
 import io.lettuce.core.codec.ByteArrayCodec;
 import io.lettuce.core.codec.RedisCodec;
 import io.lettuce.core.masterreplica.MasterReplica;
-import io.lettuce.core.masterreplica.StatefulRedisMasterReplicaConnection;
 import io.lettuce.core.pubsub.RedisPubSubListener;
 import io.lettuce.core.pubsub.StatefulRedisPubSubConnection;
 import io.lettuce.core.pubsub.api.async.RedisPubSubAsyncCommands;
@@ -218,15 +218,15 @@ class RedisSessionFactoryImpl implements RedisSessionFactory {
     if (RedisConnectorConfig.ClientMode.Cluster == config.clientMode) {
       final RedisClusterClient redisClusterClient = createClient(config, RedisClusterClient.class);
       final StatefulRedisClusterPubSubConnection<byte[], byte[]> clusterConnection = redisClusterClient.connectPubSub(codec);
-      result = new ClusterPubSubSessionImpl(clusterConnection);
+      result = new ClusterPubSubSessionImpl(clusterConnection, redisClusterClient);
     } else if (RedisConnectorConfig.ClientMode.Standalone == config.clientMode) {
       final RedisClient standaloneClient = createClient(config, RedisClient.class);
       final StatefulRedisPubSubConnection<byte[], byte[]> standaloneConnection = standaloneClient.connectPubSub(codec);
-      result = new PubSubSessionImpl(standaloneConnection);
+      result = new PubSubSessionImpl(standaloneConnection, standaloneClient);
     } else if (RedisConnectorConfig.ClientMode.Sentinel == config.clientMode) {
       final RedisClient standaloneClient = createClient(config, RedisClient.class);
       final StatefulRedisPubSubConnection<byte[], byte[]> standaloneConnection = standaloneClient.connectPubSub(codec);
-      result = new PubSubSessionImpl(standaloneConnection);
+      result = new PubSubSessionImpl(standaloneConnection, standaloneClient);
     } else {
       throw new UnsupportedOperationException(
           String.format("%s is not supported", config.clientMode)
@@ -242,34 +242,34 @@ class RedisSessionFactoryImpl implements RedisSessionFactory {
     if (RedisConnectorConfig.ClientMode.Standalone == config.clientMode ||
         RedisConnectorConfig.ClientMode.Sentinel == config.clientMode) {
       final StatefulRedisConnection<byte[], byte[]> connection;
-
+      final RedisClient client;
       if (RedisConnectorConfig.ClientMode.Standalone == config.clientMode) {
-        final RedisClient standaloneClient = createClient(config, RedisClient.class);
-        final StatefulRedisConnection<byte[], byte[]> standaloneConnection = standaloneClient.connect(codec);
-        connection = standaloneConnection;
+        client = createClient(config, RedisClient.class);
+        connection = client.connect(codec);
       } else if (RedisConnectorConfig.ClientMode.Sentinel == config.clientMode) {
-        final RedisClient sentinelClient = createClient(config, RedisClient.class);
-        final StatefulRedisMasterReplicaConnection<byte[], byte[]> sentinelConnection = MasterReplica.connect(sentinelClient, codec, config.redisURIs().get(0));
-        connection = sentinelConnection;
+        client = createClient(config, RedisClient.class);
+        connection = MasterReplica.connect(client, codec, config.redisURIs().get(0));
       } else {
         throw new UnsupportedOperationException(
             String.format("%s is not supported", config.clientMode)
         );
       }
-      result = new RedisSessionImpl(connection);
+      result = new RedisSessionImpl(connection, client);
     } else {
       final RedisClusterClient redisClusterClient = createClient(config, RedisClusterClient.class);
       final StatefulRedisClusterConnection<byte[], byte[]> connection = redisClusterClient.connect(codec);
-      result = new RedisClusterSessionImpl(connection);
+      result = new RedisClusterSessionImpl(connection, redisClusterClient);
     }
     return result;
   }
 
   static abstract class AbstractRedisSession<CONN extends StatefulConnection<byte[], byte[]>> implements RedisSession {
     protected final CONN connection;
+    protected final AbstractRedisClient client;
 
-    public AbstractRedisSession(CONN connection) {
+    public AbstractRedisSession(CONN connection, AbstractRedisClient client) {
       this.connection = connection;
+      this.client = client;
     }
 
     @Override
@@ -285,15 +285,21 @@ class RedisSessionFactoryImpl implements RedisSessionFactory {
     @Override
     public void close() throws Exception {
       this.connection.close();
+      this.client.shutdown();
     }
   }
 
   static class RedisSessionImpl extends AbstractRedisSession<StatefulRedisConnection<byte[], byte[]>> {
     private final RedisAsyncCommands<byte[], byte[]> asyncCommands;
 
-    RedisSessionImpl(StatefulRedisConnection<byte[], byte[]> connection) {
-      super(connection);
+    RedisSessionImpl(StatefulRedisConnection<byte[], byte[]> connection, AbstractRedisClient client) {
+      super(connection, client);
       this.asyncCommands = this.connection.async();
+    }
+
+    @Override
+    public RedisSetAsyncCommands<byte[], byte[]> set() {
+      return this.asyncCommands;
     }
 
     @Override
@@ -331,9 +337,14 @@ class RedisSessionFactoryImpl implements RedisSessionFactory {
   static class RedisClusterSessionImpl extends AbstractRedisSession<StatefulRedisClusterConnection<byte[], byte[]>> {
     private final RedisClusterAsyncCommands<byte[], byte[]> asyncCommands;
 
-    RedisClusterSessionImpl(StatefulRedisClusterConnection<byte[], byte[]> connection) {
-      super(connection);
+    RedisClusterSessionImpl(StatefulRedisClusterConnection<byte[], byte[]> connection, AbstractRedisClient client) {
+      super(connection, client);
       this.asyncCommands = this.connection.async();
+    }
+
+    @Override
+    public RedisSetAsyncCommands<byte[], byte[]> set() {
+      return this.asyncCommands;
     }
 
     @Override
@@ -369,10 +380,12 @@ class RedisSessionFactoryImpl implements RedisSessionFactory {
 
   static abstract class AbstractPubSubSession<CONNECTION extends StatefulRedisPubSubConnection<byte[], byte[]>> implements RedisPubSubSession {
     protected final CONNECTION connection;
+    protected final AbstractRedisClient client;
     protected final RedisPubSubAsyncCommands<byte[], byte[]> asyncCommands;
 
-    AbstractPubSubSession(CONNECTION connection) {
+    AbstractPubSubSession(CONNECTION connection, AbstractRedisClient client) {
       this.connection = connection;
+      this.client = client;
       this.asyncCommands = this.connection.async();
     }
 
@@ -385,12 +398,13 @@ class RedisSessionFactoryImpl implements RedisSessionFactory {
     @Override
     public void close() throws Exception {
       this.connection.close();
+      this.client.shutdown();
     }
   }
 
   static class ClusterPubSubSessionImpl extends AbstractPubSubSession<StatefulRedisClusterPubSubConnection<byte[], byte[]>> {
-    ClusterPubSubSessionImpl(StatefulRedisClusterPubSubConnection<byte[], byte[]> connection) {
-      super(connection);
+    ClusterPubSubSessionImpl(StatefulRedisClusterPubSubConnection<byte[], byte[]> connection, AbstractRedisClient client) {
+      super(connection, client);
     }
 
     @Override
@@ -410,8 +424,8 @@ class RedisSessionFactoryImpl implements RedisSessionFactory {
   }
 
   static class PubSubSessionImpl extends AbstractPubSubSession<StatefulRedisPubSubConnection<byte[], byte[]>> {
-    PubSubSessionImpl(StatefulRedisPubSubConnection<byte[], byte[]> connection) {
-      super(connection);
+    PubSubSessionImpl(StatefulRedisPubSubConnection<byte[], byte[]> connection, AbstractRedisClient client) {
+      super(connection, client);
     }
 
     @Override

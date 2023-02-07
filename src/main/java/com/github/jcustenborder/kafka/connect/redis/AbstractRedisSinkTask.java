@@ -200,19 +200,32 @@ public abstract class AbstractRedisSinkTask<CONFIG extends RedisConnectorConfig>
       );
     });
 
-    Map<String, Map<byte[], byte[]>> topicToPartitionAndOffsets = new HashMap<>();
+    Map<String, Map<TopicPartition, OffsetAndMetadata>> topicToPartitionAndOffsets = new HashMap<>();
 
     currentOffsets.forEach(((topicPartition, offsetAndMetadata) -> {
-      Map<byte[], byte[]> partitionsAndOffsets = topicToPartitionAndOffsets.computeIfAbsent(topicPartition.topic(), k -> new HashMap<>());
+      Map<TopicPartition, OffsetAndMetadata> partitionsAndOffsets = topicToPartitionAndOffsets.computeIfAbsent(topicPartition.topic(), k -> new HashMap<>());
       partitionsAndOffsets.put(
-          Integer.toString(topicPartition.partition()).getBytes(StandardCharsets.UTF_8),
-          Long.toString(offsetAndMetadata.offset()).getBytes(StandardCharsets.UTF_8)
+          topicPartition,
+          offsetAndMetadata
       );
     }));
 
-    topicToPartitionAndOffsets.forEach((topic, offsets) -> {
-      byte[] topicKey = String.format("__kafka.offsets.%s", topic).getBytes(StandardCharsets.UTF_8);
-      CompletableFuture<?> future = this.session.hash().hset(topicKey, offsets).toCompletableFuture();
+    topicToPartitionAndOffsets.forEach((topic, offsetAndMetadata) -> {
+      String topicKey = String.format("__kafka.offsets.%s", topic);
+      Map<byte[], byte[]> offsets = offsetAndMetadata.entrySet()
+          .stream()
+          .collect(
+              Collectors.toMap(
+                  e -> Integer.toString(e.getKey().partition()).getBytes(StandardCharsets.UTF_8),
+                  e -> Long.toString(e.getValue().offset()).getBytes(StandardCharsets.UTF_8)
+              )
+          );
+
+      log.debug("flush() - calling hset('{}')\n{}", topicKey, offsetAndMetadata);
+      CompletableFuture<?> future = this.session.hash().hset(
+          topicKey.getBytes(StandardCharsets.UTF_8),
+          offsets
+      ).toCompletableFuture();
       this.futures.add(future);
     });
 

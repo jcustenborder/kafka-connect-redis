@@ -25,7 +25,6 @@ import java.util.Map;
 
 public abstract class AbstractRedisSourceConnector<CONFIG extends AbstractConfig> extends SourceConnector {
   protected Map<String, String> settings;
-
   protected abstract CONFIG config(Map<String, String> settings);
 
   @Override

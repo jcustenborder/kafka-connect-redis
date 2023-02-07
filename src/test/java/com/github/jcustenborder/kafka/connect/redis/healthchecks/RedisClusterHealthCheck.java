@@ -28,6 +28,7 @@ import org.slf4j.LoggerFactory;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.StringReader;
+import java.util.Date;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -90,7 +91,12 @@ public class RedisClusterHealthCheck implements ClusterHealthCheck {
             return false;
           }
 
-          return true;
+          String roundTrip = Long.toString(new Date().getTime());
+
+          syncCommands.set("healthcheck", roundTrip);
+          String result = syncCommands.get("healthcheck");
+          return roundTrip.equals(result);
+//          return true;
         }
       }
     });

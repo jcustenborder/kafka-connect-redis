@@ -18,6 +18,9 @@ package com.github.jcustenborder.kafka.connect.redis;
 import org.apache.kafka.connect.sink.SinkRecord;
 import org.slf4j.Logger;
 
+import java.util.LinkedHashMap;
+import java.util.Map;
+
 
 class Utils {
   public static void logLocation(Logger log, SinkRecord record) {
@@ -33,5 +36,19 @@ class Utils {
         record.kafkaPartition(),
         record.kafkaOffset()
     );
+  }
+
+  public static Map<String, String> mapOf(String... args) {
+    if (args.length % 2 != 0) {
+      throw new IllegalStateException("Even number of arguments must be supplied");
+    }
+    Map<String, String> result = new LinkedHashMap<>();
+    for (int i = 0; i < args.length; i += 2) {
+      result.put(
+          args[i],
+          args[i + 1]
+      );
+    }
+    return result;
   }
 }

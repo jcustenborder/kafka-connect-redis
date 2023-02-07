@@ -8,3 +8,5 @@ ADD entrypoint.sh /bin/entrypoint.sh
 ADD conf/redis-*.conf /opt/redis/
 
 CMD /bin/entrypoint.sh
+
+STOPSIGNAL 9

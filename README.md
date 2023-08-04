@@ -63,6 +63,18 @@ Redis database to connect to.
 
 
 
+##### `redis.datatype`
+
+Redis data-type to use (sets, streams).
+
+*Importance:* High
+
+*Type:* String
+
+*Default Value:* Sets
+
+
+
 ##### `redis.operation.timeout.ms`
 
 The amount of time in milliseconds before an operation is marked as timed out.

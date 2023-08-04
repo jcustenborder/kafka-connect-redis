@@ -47,6 +47,8 @@ class RedisConnectorConfig extends AbstractConfig {
   public static final String CLIENT_MODE_CONFIG = "redis.client.mode";
   static final String CLIENT_MODE_DOC = "The client mode to use when interacting with the Redis " +
       "cluster.";
+  public static final String DATA_TYPE_CONFIG = "redis.data.type";
+  static final String DATA_TYPE_DOC = "Data type to use when storing data in redis. Currently supported data types are SETS and STREAMS";
   public static final String AUTO_RECONNECT_ENABLED_CONFIG = "redis.auto.reconnect.enabled";
   static final String AUTO_RECONNECT_ENABLED_DOC = "Flag to determine if the Redis client should " +
       "automatically reconnect.";
@@ -77,6 +79,7 @@ class RedisConnectorConfig extends AbstractConfig {
   public final static String CONNECTION_RETRY_DELAY_MS_DOC = "The amount of milliseconds to wait between redis connection attempts.";
 
   public final ClientMode clientMode;
+  public final DataType dataType;
   public final List<HostAndPort> hosts;
 
   public final String password;
@@ -105,6 +108,7 @@ class RedisConnectorConfig extends AbstractConfig {
     this.password = getPassword(PASSWORD_CONFIG).value();
     this.database = getInt(DATABASE_CONFIG);
     this.clientMode = ConfigUtils.getEnum(ClientMode.class, this, CLIENT_MODE_CONFIG);
+    this.dataType = ConfigUtils.getEnum(DataType.class, this, DATA_TYPE_CONFIG);
     this.autoReconnectEnabled = getBoolean(AUTO_RECONNECT_ENABLED_CONFIG);
     this.requestQueueSize = getInt(REQUEST_QUEUE_SIZE_CONFIG);
     this.keepAliveEnabled = getBoolean(SOCKET_KEEP_ALIVE_CONFIG);
@@ -136,6 +140,13 @@ class RedisConnectorConfig extends AbstractConfig {
                 .documentation(CLIENT_MODE_DOC)
                 .defaultValue(ClientMode.Standalone.toString())
                 .validator(ValidEnum.of(ClientMode.class))
+                .importance(ConfigDef.Importance.MEDIUM)
+                .build()
+        ).define(
+            ConfigKeyBuilder.of(DATA_TYPE_CONFIG, ConfigDef.Type.STRING)
+                .documentation(DATA_TYPE_DOC)
+                .defaultValue(DataType.Sets.toString())
+                .validator(ValidEnum.of(DataType.class))
                 .importance(ConfigDef.Importance.MEDIUM)
                 .build()
         ).define(
@@ -255,6 +266,11 @@ class RedisConnectorConfig extends AbstractConfig {
   public enum ClientMode {
     Standalone,
     Cluster
+  }
+
+  public enum DataType {
+    Streams,
+    Sets
   }
 
   public enum RedisSslProvider {

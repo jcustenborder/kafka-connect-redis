@@ -92,6 +92,9 @@ public class RedisSinkTaskTest {
     when(setFuture.await(anyLong(), any(TimeUnit.class))).thenReturn(true);
     RedisFuture<Long> deleteFuture = mock(RedisFuture.class);
     when(deleteFuture.await(anyLong(), any(TimeUnit.class))).thenReturn(true);
+    RedisFuture<String> addFuture = mock(RedisFuture.class);
+    when(addFuture.await(anyLong(), any(TimeUnit.class))).thenReturn(true);
+    when(asyncCommands.xadd(any(byte[].class), any(byte[].class))).thenReturn(addFuture);
     when(asyncCommands.mset(anyMap())).thenReturn(setFuture);
     when(asyncCommands.del(any())).thenReturn(deleteFuture);
     task.config = new RedisSinkConnectorConfig(
@@ -154,6 +157,27 @@ public class RedisSinkTaskTest {
 
     task.flush(ImmutableMap.of(new TopicPartition(lastRecord.topic(), lastRecord.kafkaPartition()), new OffsetAndMetadata(lastRecord.kafkaOffset())));
     inOrder.verify(asyncCommands, times(2)).mset(anyMap());
+  }
+
+  @Test
+  public void add() throws InterruptedException {
+    task.config = new RedisSinkConnectorConfig(
+            ImmutableMap.of(RedisSinkConnectorConfig.DATA_TYPE_CONFIG, "Streams")
+    );
+    List<SinkRecord> records = Arrays.asList(
+            record("add1", "456"),
+            record("add2", "123"),
+            record("add3", "555"),
+            record("set2", "666")
+    );
+
+    task.put(records);
+
+    InOrder inOrder = Mockito.inOrder(asyncCommands);
+    inOrder.verify(asyncCommands, times(4)).xadd(any(byte[].class), any(byte[].class));
+
+    task.flush(ImmutableMap.of(new TopicPartition(lastRecord.topic(), lastRecord.kafkaPartition()), new OffsetAndMetadata(lastRecord.kafkaOffset())));
+    inOrder.verify(asyncCommands, times(1)).xadd(any(byte[].class), any(byte[].class));
   }
 
 }

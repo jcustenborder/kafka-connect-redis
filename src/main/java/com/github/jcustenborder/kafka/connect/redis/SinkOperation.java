@@ -21,11 +21,10 @@ import org.apache.kafka.connect.errors.RetriableException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.ArrayList;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 abstract class SinkOperation {
   private static final Logger log = LoggerFactory.getLogger(SinkOperation.class);
@@ -64,19 +63,30 @@ abstract class SinkOperation {
   public static SinkOperation create(Type type, RedisSinkConnectorConfig config, int size) {
     SinkOperation result;
 
-    switch (type) {
-      case SET:
-        result = new SetOperation(config, size);
-        break;
-      case DELETE:
-        result = new DeleteOperation(config, size);
-        break;
+    switch (config.dataType) {
+      case Sets:
+        switch (type) {
+          case SET:
+            result = new SetOperation(config, size);
+            break;
+          case DELETE:
+            result = new DeleteOperation(config, size);
+            break;
+          default:
+            throw new IllegalStateException(
+                    String.format("%s is not a supported operation.", type)
+            );
+        }
+      case Streams:
+        if (type == Type.SET) {
+          result = new AddOperation(config, size);
+          break;
+        }
       default:
         throw new IllegalStateException(
-            String.format("%s is not a supported operation.", type)
+              String.format("%s is not a supported operation.", type)
         );
     }
-
     return result;
   }
 
@@ -100,6 +110,33 @@ abstract class SinkOperation {
     @Override
     public int size() {
       return 0;
+    }
+  }
+
+  static class AddOperation extends SinkOperation {
+    final Map<byte[], List<byte[]>> entries;
+
+    AddOperation(RedisSinkConnectorConfig config, int size) {
+      super(Type.SET, config);
+      this.entries = new HashMap<>(size);
+    }
+
+    @Override
+    public void add(byte[] key, byte[] value) {
+      List<byte[]> existingEntries = entries.getOrDefault(key, new ArrayList<>());
+      existingEntries.add(value);
+      entries.put(key, existingEntries);
+    }
+
+    public void execute(RedisClusterAsyncCommands<byte[], byte[]> asyncCommands) throws InterruptedException {
+      log.debug("execute() - Calling xadd with {} value(s)", this.entries.size());
+      Stream<RedisFuture<?>> futures = entries.entrySet().stream().map(entry -> asyncCommands.xadd(entry.getKey(), entry.getValue().toArray()));
+      for (RedisFuture<?> future : futures.collect(Collectors.toList())) wait(future);
+    }
+
+    @Override
+    public int size() {
+      return entries.size();
     }
   }
 

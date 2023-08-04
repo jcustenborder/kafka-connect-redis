@@ -166,7 +166,7 @@ public class RedisSinkTask extends SinkTask {
       if (null == value) {
         currentOperationType = SinkOperation.Type.DELETE;
       } else {
-        currentOperationType = SinkOperation.Type.SET;
+        currentOperationType = SinkOperation.defaultType(config);
       }
 
       if (currentOperationType != operation.type) {
@@ -200,7 +200,7 @@ public class RedisSinkTask extends SinkTask {
 
   @Override
   public void flush(Map<TopicPartition, OffsetAndMetadata> currentOffsets) {
-    SinkOperation operation = SinkOperation.create(SinkOperation.Type.SET, this.config, currentOffsets.size());
+    SinkOperation operation = SinkOperation.create(SinkOperation.defaultType(config), this.config, currentOffsets.size());
 
     List<SinkOffsetState> states = currentOffsets
         .entrySet().stream()

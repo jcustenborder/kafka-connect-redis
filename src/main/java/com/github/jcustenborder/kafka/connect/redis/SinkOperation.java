@@ -21,7 +21,11 @@ import org.apache.kafka.connect.errors.RetriableException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.*;
+import java.util.Map;
+import java.util.List;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -39,6 +43,7 @@ abstract class SinkOperation {
   }
 
   public enum Type {
+    ADD,
     SET,
     DELETE,
     NONE
@@ -60,35 +65,39 @@ abstract class SinkOperation {
     }
   }
 
+  public static SinkOperation.Type defaultType(RedisConnectorConfig config) {
+    switch (config.dataType) {
+      case Streams:
+        return Type.ADD;
+      case Sets:
+        return Type.SET;
+      default:
+        return null;
+    }
+  }
+
   public static SinkOperation create(Type type, RedisSinkConnectorConfig config, int size) {
     SinkOperation result;
-
-    switch (config.dataType) {
-      case Sets:
-        switch (type) {
-          case SET:
-            result = new SetOperation(config, size);
-            break;
-          case DELETE:
-            result = new DeleteOperation(config, size);
-            break;
-          default:
-            throw new IllegalStateException(
-                    String.format("%s is not a supported operation.", type)
-            );
-        }
-      case Streams:
-        if (type == Type.SET) {
-          result = new AddOperation(config, size);
+    switch (type) {
+      case SET:
+        result = new SetOperation(config, size);
+        break;
+      case ADD:
+        result = new AddOperation(config, size);
+        break;
+      case DELETE:
+        if (config.dataType == RedisConnectorConfig.DataType.Sets) {
+          result = new DeleteOperation(config, size);
           break;
         }
       default:
         throw new IllegalStateException(
-              String.format("%s is not a supported operation.", type)
+                String.format("%s is not a supported operation.", type)
         );
     }
     return result;
   }
+
 
   static class NoneOperation extends SinkOperation {
     NoneOperation(RedisSinkConnectorConfig config) {

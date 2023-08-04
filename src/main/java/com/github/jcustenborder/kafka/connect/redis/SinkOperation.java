@@ -65,7 +65,7 @@ abstract class SinkOperation {
     }
   }
 
-  public static SinkOperation.Type defaultType(RedisConnectorConfig config) {
+  public static SinkOperation.Type defaultPutType(RedisConnectorConfig config) {
     switch (config.dataType) {
       case Streams:
         return Type.ADD;
